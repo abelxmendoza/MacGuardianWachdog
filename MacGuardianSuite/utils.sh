@@ -24,6 +24,21 @@ if [ -f "$(dirname "${BASH_SOURCE[0]}")/debug_helper.sh" ]; then
     source "$(dirname "${BASH_SOURCE[0]}")/debug_helper.sh" 2>/dev/null || true
 fi
 
+# Source performance monitor if available
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/performance_monitor.sh" ]; then
+    source "$(dirname "${BASH_SOURCE[0]}")/performance_monitor.sh" 2>/dev/null || true
+fi
+
+# Source error recovery if available
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/error_recovery.sh" ]; then
+    source "$(dirname "${BASH_SOURCE[0]}")/error_recovery.sh" 2>/dev/null || true
+fi
+
+# Source UX enhancer if available
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/ux_enhancer.sh" ]; then
+    source "$(dirname "${BASH_SOURCE[0]}")/ux_enhancer.sh" 2>/dev/null || true
+fi
+
 # Error handling function with logging and tracking
 error_exit() {
     local error_msg="$1"

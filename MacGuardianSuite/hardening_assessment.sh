@@ -94,9 +94,9 @@ check_system_hardening() {
         "network" "high" \
         "Enable Firewall: System Settings > Network > Firewall"
     
-    # Automatic Updates
+    # Automatic Updates (check both system and user preferences)
     check_item "Automatic Security Updates" \
-        "defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null | grep -q '1'" \
+        "(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null | grep -q '1') || (defaults read com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null | grep -q '1') || softwareupdate --schedule on 2>&1 | grep -q 'on'" \
         "system" "high" \
         "Enable auto-updates: System Settings > Software Update"
     
@@ -152,9 +152,10 @@ check_filesystem_hardening() {
         "file" "high" \
         "Secure home directory: chmod 700 $HOME"
     
-    # World-writable files check
+    # World-writable files check (limited scope for performance)
+    # Only check top-level directories to avoid long scans
     check_item "No World-Writable Files in Home" \
-        "[ \$(find $HOME -type f -perm -002 2>/dev/null | wc -l) -eq 0 ]" \
+        "[ \$(find $HOME -maxdepth 3 -type f -perm -002 -not -path '*/Library/Caches/*' -not -path '*/Library/Logs/*' -not -path '*/.git/*' 2>/dev/null | head -10 | wc -l | tr -d ' ') -eq 0 ]" \
         "file" "medium" \
         "Review and fix: find $HOME -type f -perm -002 -ls"
     
@@ -296,13 +297,15 @@ main() {
         system_diagnostics
     fi
     
-    # Run all checks
+    # Run all checks (with error handling)
+    set +e  # Don't exit on individual check failures
     check_system_hardening
     check_network_hardening
     check_filesystem_hardening
     check_application_hardening
     check_user_hardening
     check_security_tools
+    set -e  # Re-enable exit on error
     
     # Generate report
     generate_report

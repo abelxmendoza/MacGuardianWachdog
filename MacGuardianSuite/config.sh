@@ -62,12 +62,12 @@ CLAMAV_MAX_FILESIZE=100M
 CLAMAV_MAX_FILES=50000
 
 # Report settings
-REPORT_EMAIL=""  # Set to enable email reports
+REPORT_EMAIL="abelxmendoza@gmail.com"  # Set to enable email reports
 REPORT_SCHEDULE="daily"  # daily, weekly, monthly
 REPORT_FORMAT="html"  # html, text, json
 
 # Alerting settings
-ALERT_EMAIL=""  # Set to enable email alerts
+ALERT_EMAIL="abelxmendoza@gmail.com"  # Set to enable email alerts
 ALERT_ENABLED=true
 ALERT_RULES_FILE="$CONFIG_DIR/alerts/rules.conf"
 EOF

@@ -904,6 +904,44 @@ main() {
     
     log_message "INFO" "Blue Team analysis completed - $total_issues issues found"
     
+    # Send action-based email with AI summary
+    if [ -f "$SCRIPT_DIR/action_email_notifier.sh" ] && [ -n "${REPORT_EMAIL:-${ALERT_EMAIL:-}}" ]; then
+        source "$SCRIPT_DIR/action_email_notifier.sh" 2>/dev/null || true
+        
+        local event_data
+        if [ "${total_issues:-0}" -gt 0 ]; then
+            event_data=$(cat <<EOF
+[
+  {
+    "category": "threat_detection",
+    "severity": "$([ ${total_issues:-0} -gt 10 ] && echo "critical" || echo "high")",
+    "title": "Blue Team threat detection completed",
+    "description": "Detected ${total_issues:-0} security issue(s)",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "issues_count": ${total_issues:-0}
+  }
+]
+EOF
+)
+            send_action_email "$ACTION_ISSUES_FOUND" "$event_data" 2>/dev/null || true
+        else
+            event_data=$(cat <<EOF
+[
+  {
+    "category": "threat_detection",
+    "severity": "info",
+    "title": "Blue Team analysis complete - No threats",
+    "description": "No security threats detected",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "issues_count": 0
+  }
+]
+EOF
+)
+            send_action_email "$ACTION_SCAN_COMPLETE" "$event_data" 2>/dev/null || true
+        fi
+    fi
+    
     # Exit with success (0) - analysis completed successfully
     # Issues found are warnings, not script errors
     exit 0

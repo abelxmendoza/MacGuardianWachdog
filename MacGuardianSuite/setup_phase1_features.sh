@@ -78,15 +78,30 @@ echo ""
 echo "${bold}🔔 Setting Up Advanced Alerting...${normal}"
 echo "----------------------------------------"
 
-# Initialize alert rules
+# Initialize alert rules (with timeout to prevent hanging)
 if [ -f "$SCRIPT_DIR/advanced_alerting.sh" ]; then
-    "$SCRIPT_DIR/advanced_alerting.sh" process 2>/dev/null || true
+    # Set default alert rules file path
+    ALERT_RULES_FILE="${ALERT_RULES_FILE:-$HOME/.macguardian/alerts/rules.conf}"
+    
+    # Initialize rules without processing (just create the file)
+    source "$SCRIPT_DIR/advanced_alerting.sh" 2>/dev/null || true
+    if type init_default_rules &> /dev/null; then
+        init_default_rules 2>/dev/null || true
+    fi
     success "✅ Alert rules initialized"
     
     # Show configured rules
     echo ""
     echo "Configured alert rules:"
-    "$SCRIPT_DIR/advanced_alerting.sh" list | head -20
+    if [ -f "$ALERT_RULES_FILE" ]; then
+        # Just show a summary instead of processing all rules
+        rule_count=$(grep -v '^#' "$ALERT_RULES_FILE" | grep -v '^$' | wc -l | tr -d ' ')
+        echo "  ✅ $rule_count alert rule(s) configured"
+        echo "  📄 Rules file: $ALERT_RULES_FILE"
+        echo "  💡 Run 'advanced_alerting.sh list' to view all rules"
+    else
+        echo "  (Rules file not found)"
+    fi
 else
     warning "⚠️  Advanced alerting script not found"
 fi

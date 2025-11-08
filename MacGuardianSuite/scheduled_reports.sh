@@ -11,6 +11,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/utils.sh"
 source "$SCRIPT_DIR/config.sh"
 
+# Load SMTP credentials from ~/.zshrc if not already set
+if [ -z "${SMTP_USERNAME:-}" ] || [ -z "${SMTP_PASSWORD:-}" ]; then
+    if [ -f ~/.zshrc ]; then
+        eval $(grep "^export SMTP_USERNAME=" ~/.zshrc 2>/dev/null || true)
+        eval $(grep "^export SMTP_PASSWORD=" ~/.zshrc 2>/dev/null || true)
+    fi
+fi
+
 # Report configuration
 REPORT_DIR="${REPORT_DIR:-$HOME/.macguardian/reports}"
 REPORT_EMAIL="${REPORT_EMAIL:-}"
@@ -250,8 +258,21 @@ send_report_email() {
         return 1
     fi
     
+    # Try Python SMTP first (most reliable)
+    if command -v python3 &> /dev/null && [ -f "$SCRIPT_DIR/send_email.py" ]; then
+        if [ -n "${SMTP_USERNAME:-}" ] && [ -n "${SMTP_PASSWORD:-}" ]; then
+            local html_content=$(cat "$report_file")
+            local text_content="MacGuardian Security Report\n\nSee attached HTML report for full details.\n\nReport generated: $(date)\nSystem: $(hostname)"
+            
+            if python3 "$SCRIPT_DIR/send_email.py" "$REPORT_EMAIL" "$subject" "$text_content" --html "$html_content" --attachment "$report_file" --username "$SMTP_USERNAME" --password "$SMTP_PASSWORD" 2>/dev/null; then
+                success "Report sent to $REPORT_EMAIL via SMTP"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Fallback: Try system mail (may not work on macOS)
     if command -v mail &> /dev/null; then
-        # Send HTML email
         {
             echo "To: $REPORT_EMAIL"
             echo "Subject: $subject"
@@ -259,17 +280,12 @@ send_report_email() {
             echo ""
             cat "$report_file"
         } | sendmail "$REPORT_EMAIL" 2>/dev/null && {
-            success "Report sent to $REPORT_EMAIL"
-            return 0
-        }
-    elif command -v osascript &> /dev/null; then
-        # Fallback: macOS Mail app
-        open "mailto:$REPORT_EMAIL?subject=$(echo "$subject" | sed 's/ /%20/g')&body=See%20attached%20report" 2>/dev/null || true
-        warning "Please configure email sending. Report saved to: $report_file"
-    else
-        warning "Email sending not available. Report saved to: $report_file"
+                warning "Report may have been queued (check if SMTP is configured)"
+                return 0
+            }
     fi
     
+    warning "Email sending not available. Report saved to: $report_file"
     return 1
 }
 

@@ -67,9 +67,12 @@ while true; do
     echo "10) Hardening Assessment (Security Evaluation)"
     echo "11) Generate Security Report"
     echo "12) Setup Phase 1 Features (Reports & Alerts)"
-    echo "13) Exit"
+    echo "13) Test Email (Send Test Email)"
+    echo "14) Performance Monitor (View Performance Stats)"
+    echo "15) Advanced Reports (Comparisons, PDF Export)"
+    echo "16) Exit"
     echo ""
-    read -p "Select (1-13): " choice
+    read -p "Select (1-16): " choice
     
     case "$choice" in
         1)
@@ -150,12 +153,69 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         13)
+            run_script "test_email.sh" "Email Test"
+            read -p "Press Enter to continue..."
+            ;;
+        14)
+            if [ -f "performance_monitor.sh" ]; then
+                echo ""
+                echo "${bold}⚡ Performance Monitor${normal}"
+                echo "----------------------------------------"
+                ./performance_monitor.sh bottlenecks
+                echo ""
+                ./performance_monitor.sh suggestions
+                echo ""
+            else
+                echo "${red}Performance monitor not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        15)
+            if [ -f "advanced_reporting.sh" ]; then
+                echo ""
+                echo "${bold}📊 Advanced Reporting${normal}"
+                echo "----------------------------------------"
+                echo "1) Generate Comparison Report"
+                echo "2) Export Report to PDF"
+                echo "3) Generate Executive Summary"
+                echo "4) Create Custom Template"
+                read -p "Select (1-4): " report_choice
+                case "$report_choice" in
+                    1)
+                        latest_report=$(ls -t "$HOME/.macguardian/reports"/*.html 2>/dev/null | head -1)
+                        if [ -n "$latest_report" ]; then
+                            ./advanced_reporting.sh compare "$latest_report"
+                        else
+                            echo "${red}No reports found. Generate a report first.${normal}"
+                        fi
+                        ;;
+                    2)
+                        latest_report=$(ls -t "$HOME/.macguardian/reports"/*.html 2>/dev/null | head -1)
+                        if [ -n "$latest_report" ]; then
+                            ./advanced_reporting.sh pdf "$latest_report"
+                        else
+                            echo "${red}No reports found. Generate a report first.${normal}"
+                        fi
+                        ;;
+                    3)
+                        ./advanced_reporting.sh executive
+                        ;;
+                    4)
+                        ./advanced_reporting.sh template
+                        ;;
+                esac
+            else
+                echo "${red}Advanced reporting not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        16)
             echo ""
-            echo "${green}👋 Goodbye!${normal}"
+            echo "${green}👋 Goodbye! Stay secure!${normal}"
             exit 0
             ;;
         *)
-            echo "${red}❌ Invalid option. Please select 1-13.${normal}"
+            echo "${red}❌ Invalid option. Please select 1-16.${normal}"
             sleep 2
             ;;
     esac

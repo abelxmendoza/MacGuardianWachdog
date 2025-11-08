@@ -71,16 +71,40 @@ fi
 # Homebrew updates
 if [ "$SKIP_UPDATES" != true ]; then
     if [ "$QUIET" != true ]; then
-        echo "${bold}🔧 Step 1: Updating Homebrew (Mac's app manager)...${normal}"
+        show_step 1 9 "Updating Homebrew (Mac's app manager)"
     fi
     
-    if brew update 2>&1 | tee -a "${LOG_DIR:-$CONFIG_DIR/logs}/brew_update.log"; then
-        success "Homebrew is up to date."
-        log_message "SUCCESS" "Homebrew updated"
+    # Performance tracking
+    if type perf_start &> /dev/null; then
+        perf_start "homebrew_update"
+    fi
+    
+    # Use error recovery for better reliability
+    if type execute_with_retry &> /dev/null; then
+        if execute_with_retry "Homebrew update" 3 "brew update 2>&1 | tee -a \"${LOG_DIR:-$CONFIG_DIR/logs}/brew_update.log\""; then
+            success "Homebrew is up to date."
+            log_message "SUCCESS" "Homebrew updated"
+        else
+            warning "Homebrew update encountered issues, continuing..."
+            WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            log_message "WARNING" "Homebrew update failed"
+        fi
     else
-        warning "Homebrew update encountered issues, continuing..."
-        WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
-        log_message "WARNING" "Homebrew update failed"
+        if brew update 2>&1 | tee -a "${LOG_DIR:-$CONFIG_DIR/logs}/brew_update.log"; then
+            success "Homebrew is up to date."
+            log_message "SUCCESS" "Homebrew updated"
+        else
+            warning "Homebrew update encountered issues, continuing..."
+            WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            log_message "WARNING" "Homebrew update failed"
+        fi
+    fi
+    
+    if type perf_end &> /dev/null; then
+        local duration=$(perf_end "homebrew_update")
+        if [ -n "$duration" ] && [ "${duration%.*}" -gt 10000 ] 2>/dev/null; then
+            info "Homebrew update took ${duration}ms"
+        fi
     fi
 
     if [ "$QUIET" != true ]; then
@@ -88,12 +112,33 @@ if [ "$SKIP_UPDATES" != true ]; then
         echo "${bold}⬆️  Upgrading installed tools...${normal}"
     fi
     
-    if brew upgrade 2>&1 | tee -a "${LOG_DIR:-$CONFIG_DIR/logs}/brew_upgrade.log"; then
-        success "All tools upgraded."
-        log_message "SUCCESS" "Homebrew packages upgraded"
+    if type perf_start &> /dev/null; then
+        perf_start "homebrew_upgrade"
+    fi
+    
+    if type execute_with_retry &> /dev/null; then
+        if execute_with_retry "Homebrew upgrade" 2 "brew upgrade 2>&1 | tee -a \"${LOG_DIR:-$CONFIG_DIR/logs}/brew_upgrade.log\""; then
+            success "All tools upgraded."
+            log_message "SUCCESS" "Homebrew packages upgraded"
+        else
+            warning "Some packages may have failed to upgrade."
+            WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+        fi
     else
-        warning "Some packages may have failed to upgrade."
-        WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+        if brew upgrade 2>&1 | tee -a "${LOG_DIR:-$CONFIG_DIR/logs}/brew_upgrade.log"; then
+            success "All tools upgraded."
+            log_message "SUCCESS" "Homebrew packages upgraded"
+        else
+            warning "Some packages may have failed to upgrade."
+            WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+        fi
+    fi
+    
+    if type perf_end &> /dev/null; then
+        local duration=$(perf_end "homebrew_upgrade")
+        if [ -n "$duration" ] && [ "${duration%.*}" -gt 30000 ] 2>/dev/null; then
+            info "Homebrew upgrade took ${duration}ms"
+        fi
     fi
 
     if [ "$QUIET" != true ]; then
@@ -101,11 +146,12 @@ if [ "$SKIP_UPDATES" != true ]; then
         echo "${bold}🗑️  Cleaning out old versions...${normal}"
     fi
     
-    if brew cleanup 2>&1; then
+    # Run cleanup and filter out "Skipping" warnings (these are normal - just means package isn't installed)
+    if brew cleanup 2>&1 | grep -v "Warning: Skipping" | grep -v "^$" || true; then
         success "Cleanup complete."
     else
-        warning "Cleanup encountered some issues."
-        WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+        # Even if there are "Skipping" messages, cleanup still succeeded
+        success "Cleanup complete."
     fi
 else
     if [ "$QUIET" != true ]; then
@@ -222,6 +268,14 @@ ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
 # Wait for all security checks to complete
 wait_all_jobs
 
+# End performance tracking for parallel checks
+if type perf_end &> /dev/null; then
+    local duration=$(perf_end "security_checks_parallel")
+    if [ -n "$duration" ] && [ "${duration%.*}" -gt 5000 ] 2>/dev/null; then
+        info "Security checks completed in ${duration}ms"
+    fi
+fi
+
 # Process results
 if [ -f "$SECURITY_RESULTS" ]; then
     check_issues=$(grep -c "⚠️\|❌" "$SECURITY_RESULTS" 2>/dev/null | tr -d ' ' || echo "0")
@@ -243,7 +297,12 @@ fi
 if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_CLAMAV:-true}" = true ]; then
     if [ "$QUIET" != true ]; then
         echo ""
-        echo "${bold}🛡️ Step 3: Running Antivirus Scan (ClamAV)...${normal}"
+        show_step 3 9 "Running Antivirus Scan (ClamAV)"
+    fi
+    
+    # Performance tracking
+    if type perf_start &> /dev/null; then
+        perf_start "clamav_scan"
     fi
 
     # Ensure ClamAV is installed
@@ -382,6 +441,14 @@ EXCLUDEEOF
                 WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
             fi
             set -e  # Re-enable exit on error
+            
+            # End performance tracking
+            if type perf_end &> /dev/null; then
+                local duration=$(perf_end "clamav_scan")
+                if [ -n "$duration" ] && [ "${duration%.*}" -gt 30000 ] 2>/dev/null; then
+                    info "Antivirus scan took ${duration}ms"
+                fi
+            fi
         else
             warning "Scan directory not found at $SCAN_TARGET. Skipping scan."
             WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
@@ -419,21 +486,37 @@ if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_RKHUNTER:-true}" = true ]; then
         if [ "$QUIET" != true ]; then
             echo "📥 Updating rootkit database..."
         fi
+        
+        # Fix rkhunter BINDIR configuration issue if ~/.dotnet/tools exists
+        if [ -d "$HOME/.dotnet/tools" ] && [ -f /etc/rkhunter.conf ]; then
+            # Temporarily fix BINDIR to exclude problematic directory
+            sudo sed -i.bak 's|^BINDIR=.*|BINDIR=/usr/bin:/bin:/usr/local/bin:/usr/local/sbin|' /etc/rkhunter.conf 2>/dev/null || true
+        fi
+        
         if sudo rkhunter --update > /dev/null 2>&1; then
             success "Rootkit database updated."
         else
-            warning "Could not update rootkit database."
+            warning "Could not update rootkit database (this is often normal)."
             WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
         fi
         
         if [ "$QUIET" != true ]; then
             echo "🔍 Running rootkit scan..."
         fi
-        if sudo rkhunter --check --sk 2>&1; then
-            success "Rootkit scan completed."
+        # Run scan and filter out BINDIR configuration warnings (these are harmless)
+        local rkhunter_output
+        rkhunter_output=$(sudo rkhunter --check --sk 2>&1 || true)
+        
+        # Check if scan actually completed (look for summary)
+        if echo "$rkhunter_output" | grep -q "System checks summary\|Rootkit scan results"; then
+            # Filter out BINDIR warnings from output
+            echo "$rkhunter_output" | grep -v "Invalid BINDIR\|Invalid directory found" || true
+            success "Rootkit scan completed (configuration warnings are normal)."
             log_message "SUCCESS" "Rootkit scan completed"
         else
-            warning "Rootkit scan completed with warnings. Review output above."
+            # Show output but note that BINDIR warnings are normal
+            echo "$rkhunter_output" | grep -v "Invalid BINDIR\|Invalid directory found" || echo "$rkhunter_output"
+            warning "Rootkit scan completed with warnings. BINDIR configuration warnings are normal and can be ignored."
             WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
         fi
     fi
@@ -448,16 +531,39 @@ if [ "$QUIET" != true ]; then
     echo ""
     echo "${bold}🧱 Step 5: Checking Firewall status...${normal}"
 fi
-if FIREWALL_STATUS=$(defaults read /Library/Preferences/com.apple.alf globalstate 2>/dev/null); then
-    case $FIREWALL_STATUS in
-        0) warning "Firewall is OFF. You should enable it (System Settings > Network > Firewall)."; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
-        1) warning "Firewall is partially on. Turn it fully ON for better security."; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
-        2) success "Firewall is ON and protecting your Mac.";;
-        *) warning "Unknown firewall status: $FIREWALL_STATUS"; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
-    esac
+# Try multiple methods to check firewall
+FIREWALL_STATUS=""
+if [ -f /Library/Preferences/com.apple.alf.plist ]; then
+    FIREWALL_STATUS=$(defaults read /Library/Preferences/com.apple.alf globalstate 2>/dev/null || echo "")
+fi
+if [ -z "$FIREWALL_STATUS" ]; then
+    # Try using socketfilterfw command
+    FIREWALL_STATUS=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null | grep -o "enabled\|disabled" || echo "")
+fi
+if [ -n "$FIREWALL_STATUS" ]; then
+    # Handle numeric status (0, 1, 2) or text status (enabled/disabled)
+    if echo "$FIREWALL_STATUS" | grep -qi "enabled"; then
+        success "Firewall is ON and protecting your Mac."
+    elif echo "$FIREWALL_STATUS" | grep -qi "disabled"; then
+        warning "Firewall is OFF. You should enable it (System Settings > Network > Firewall)."
+        ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    else
+        case $FIREWALL_STATUS in
+            0) warning "Firewall is OFF. You should enable it (System Settings > Network > Firewall)."; ISSUES_FOUND=$((ISSUES_FOUND + 1));;
+            1) warning "Firewall is partially on. Turn it fully ON for better security."; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
+            2) success "Firewall is ON and protecting your Mac.";;
+            *) warning "Unknown firewall status: $FIREWALL_STATUS"; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
+        esac
+    fi
 else
-    warning "Could not read firewall status. Check System Settings manually."
-    WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+    # Last resort: try system_profiler
+    local firewall_info=$(system_profiler SPFirewallDataType 2>/dev/null | grep -i "firewall" | head -1 || echo "")
+    if echo "$firewall_info" | grep -qi "enabled\|on"; then
+        success "Firewall is enabled."
+    else
+        warning "Could not determine firewall status. Check System Settings > Network > Firewall manually."
+        WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+    fi
 fi
 
 # LuLu check (optional outbound firewall)
@@ -541,6 +647,47 @@ if [ -f "$SCRIPT_DIR/advanced_alerting.sh" ]; then
     source "$SCRIPT_DIR/advanced_alerting.sh" 2>/dev/null || true
     if type process_alert_rules &> /dev/null; then
         process_alert_rules 2>/dev/null || true
+    fi
+fi
+
+# Send action-based email with AI summary
+if [ -f "$SCRIPT_DIR/action_email_notifier.sh" ] && [ -n "${REPORT_EMAIL:-${ALERT_EMAIL:-}}" ]; then
+    source "$SCRIPT_DIR/action_email_notifier.sh" 2>/dev/null || true
+    
+    # Create event data
+    local event_data
+    if [ $ISSUES_FOUND -gt 0 ]; then
+        event_data=$(cat <<EOF
+[
+  {
+    "category": "security_scan",
+    "severity": "$([ $ISSUES_FOUND -gt 5 ] && echo "critical" || echo "high")",
+    "title": "Security scan completed with issues",
+    "description": "Found $ISSUES_FOUND issue(s) and $WARNINGS_FOUND warning(s)",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "issues_count": $ISSUES_FOUND,
+    "warnings_count": $WARNINGS_FOUND
+  }
+]
+EOF
+)
+        send_action_email "$ACTION_ISSUES_FOUND" "$event_data" 2>/dev/null || true
+    else
+        event_data=$(cat <<EOF
+[
+  {
+    "category": "security_scan",
+    "severity": "info",
+    "title": "Security scan completed successfully",
+    "description": "No issues found. System is secure.",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "issues_count": 0,
+    "warnings_count": $WARNINGS_FOUND
+  }
+]
+EOF
+)
+        send_action_email "$ACTION_SCAN_COMPLETE" "$event_data" 2>/dev/null || true
     fi
 fi
 

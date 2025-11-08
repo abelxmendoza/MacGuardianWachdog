@@ -21,6 +21,10 @@ A comprehensive, all-in-one security and maintenance platform for macOS that com
 - ✅ **Enterprise-Grade**: Rivals $30K+ commercial security platforms
 - ✅ **Privacy-First**: All processing happens locally on your Mac
 - ✅ **Open Source**: Fully customizable and transparent
+- ✅ **Performance Optimized**: Built-in performance monitoring and optimization
+- ✅ **Self-Healing**: Automatic error recovery and remediation
+- ✅ **User-Friendly**: Progress bars, step indicators, and helpful error messages
+- ✅ **Advanced Reporting**: Comparisons, PDF exports, and custom templates
 
 ---
 
@@ -38,6 +42,34 @@ chmod +x mac_suite.sh MacGuardianSuite/*.sh
 ./mac_suite.sh
 ```
 
+## ⚡ New Features (Latest Update)
+
+### Performance Monitoring
+- Track execution times for all operations
+- Identify bottlenecks automatically
+- Get optimization suggestions
+- View performance statistics
+
+### Enhanced Error Recovery
+- Auto-retry failed operations (up to 3 attempts)
+- Exponential backoff for retries
+- Graceful degradation with fallbacks
+- Self-healing for common issues
+
+### UX Enhancements
+- Progress bars for long operations
+- Step indicators (1/9, 2/9, etc.)
+- Better error messages with solutions
+- Time estimates for operations
+- Spinner animations for indeterminate progress
+
+### Advanced Reporting
+- Week-over-week comparison reports
+- PDF export capability
+- Custom report templates
+- Executive summaries
+- Template system for easy customization
+
 ---
 
 ## 📋 Complete Feature List
@@ -50,11 +82,15 @@ chmod +x mac_suite.sh MacGuardianSuite/*.sh
 - **Security Checks**: Firewall, Gatekeeper, SIP, processes, network
 - **Parallel Processing**: Multi-threaded security checks
 - **HTML Reports**: Professional security reports
+- **Performance Monitoring**: Track execution times, identify bottlenecks
+- **Error Recovery**: Auto-retry with exponential backoff, graceful degradation
+- **UX Enhancements**: Progress bars, step indicators, better error messages
 
 ### 🐺 Mac Watchdog (File Integrity Monitor)
 - **File Integrity Monitoring**: SHA-256 checksums with incremental hashing
 - **Honeypot Detection**: Monitors fake credential files
 - **System Log Monitoring**: Tracks significant log changes
+- **Performance Tracking**: Monitor scan performance and optimize
 - **Advanced Algorithms**: Hash tables, LRU cache, optimized diff
 - **Email Alerts**: Configurable alert system
 
