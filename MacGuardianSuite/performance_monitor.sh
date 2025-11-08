@@ -104,8 +104,10 @@ perf_stats() {
 
 # Identify bottlenecks
 identify_bottlenecks() {
-    if [ ! -f "$PERF_DB" ]; then
-        echo "No performance data available"
+    if [ ! -f "$PERF_DB" ] || [ ! -s "$PERF_DB" ]; then
+        echo "ℹ️  No performance data available yet"
+        echo "   Run Mac Guardian or other tools to collect performance data"
+        echo "   Performance tracking is automatic - no setup needed!"
         return 1
     fi
     
@@ -152,8 +154,15 @@ get_optimization_suggestions() {
     echo "=========================================="
     echo ""
     
-    if [ ! -f "$PERF_DB" ]; then
-        echo "No performance data available yet. Run some operations first."
+    if [ ! -f "$PERF_DB" ] || [ ! -s "$PERF_DB" ]; then
+        echo "ℹ️  No performance data available yet"
+        echo "   Performance tracking starts automatically when you run:"
+        echo "   • Mac Guardian (option 1)"
+        echo "   • Mac Watchdog (option 2)"
+        echo "   • Mac Blue Team (option 3)"
+        echo "   • Any other security tools"
+        echo ""
+        echo "   After running these tools, come back here to see optimization suggestions!"
         return 1
     fi
     

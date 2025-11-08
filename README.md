@@ -86,8 +86,11 @@ chmod +x mac_suite.sh MacGuardianSuite/*.sh
 - **Error Recovery**: Auto-retry with exponential backoff, graceful degradation
 - **UX Enhancements**: Progress bars, step indicators, better error messages
 
-### 🐺 Mac Watchdog (File Integrity Monitor)
-- **File Integrity Monitoring**: SHA-256 checksums with incremental hashing
+### 🐺 Mac Watchdog (File Integrity Monitor / Tripwire)
+- **Tripwire Functionality**: SHA-256 checksums with incremental hashing
+- **File Integrity Monitoring**: Detects unauthorized file changes
+- **Baseline Creation**: Establishes file fingerprints for comparison
+- **Change Detection**: Alerts on file modifications, additions, deletions
 - **Honeypot Detection**: Monitors fake credential files
 - **System Log Monitoring**: Tracks significant log changes
 - **Performance Tracking**: Monitor scan performance and optimize

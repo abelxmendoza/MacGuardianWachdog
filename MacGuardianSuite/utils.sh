@@ -372,15 +372,29 @@ check_suspicious_processes() {
 }
 
 # Check network connections (optimized)
+# NOTE: This does NOT wiretap or inspect packet content
+# It only checks connection metadata (IPs, ports, process names)
 check_network_connections() {
+    # Check privacy mode
+    if [ -f "$(dirname "${BASH_SOURCE[0]}")/privacy_mode.sh" ]; then
+        source "$(dirname "${BASH_SOURCE[0]}")/privacy_mode.sh" 2>/dev/null || true
+        load_privacy_settings 2>/dev/null || true
+        if [ "${MONITOR_NETWORK:-true}" = "false" ]; then
+            info "Network monitoring disabled (privacy mode)"
+            return 0
+        fi
+    fi
+    
     local suspicious_conns=0
     
     # Check for unusual outbound connections
+    # NOTE: lsof only shows connection metadata, NOT packet content
+    # This is NOT wiretapping - just like netstat or Activity Monitor
     if command -v lsof &> /dev/null; then
         # Cache lsof output to avoid multiple calls
         local lsof_output=$(lsof -i -P -n 2>/dev/null)
         local conn_count=$(echo "$lsof_output" | grep -c ESTABLISHED || echo "0")
-        info "Active network connections: $conn_count"
+        info "Active network connections: $conn_count (metadata only, no content inspection)"
         
         # Use optimized pattern matching
         SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

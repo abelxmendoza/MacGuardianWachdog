@@ -183,9 +183,22 @@ analyze_processes() {
 }
 
 # Network traffic analysis
+# NOTE: This does NOT wiretap or inspect packet content
+# It only checks connection metadata (IPs, ports, process names)
 analyze_network() {
+    # Check privacy mode
+    if [ -f "$SCRIPT_DIR/privacy_mode.sh" ]; then
+        source "$SCRIPT_DIR/privacy_mode.sh" 2>/dev/null || true
+        load_privacy_settings 2>/dev/null || true
+        if [ "${MONITOR_NETWORK:-true}" = "false" ]; then
+            info "Network monitoring disabled (privacy mode)"
+            return 0
+        fi
+    fi
+    
     if [ "$QUIET" != true ]; then
         echo "${bold}🌐 Network Traffic Analysis...${normal}"
+        echo "${blue}   (Connection metadata only - no packet inspection)${normal}"
     fi
     
     local suspicious_conns=0
@@ -196,12 +209,17 @@ analyze_network() {
     fi
     
     # Get all network connections
+    # NOTE: lsof only shows connection metadata (like netstat)
+    # This is NOT wiretapping - we don't capture or inspect packet content
     local connections=$(lsof -i -P -n 2>/dev/null | grep ESTABLISHED || true)
     
     if [ -z "$connections" ]; then
         info "No active network connections"
         return 0
     fi
+    
+    # Check threat intelligence database
+    local threat_intel_db="$HOME/.macguardian/threat_intel/iocs.json"
     
     # Analyze connections
     while IFS= read -r conn; do
@@ -227,7 +245,18 @@ analyze_network() {
             fi
         done
         
-        # Check against known bad IPs
+        # Check against threat intelligence feeds
+        if [ -f "$threat_intel_db" ] && command -v jq &> /dev/null; then
+            # Check if IP is in threat intel database
+            local threat_match=$(jq -r ".[] | select(.type == \"ip\" and .value == \"$remote\") | .value" "$threat_intel_db" 2>/dev/null | head -1)
+            if [ -n "$threat_match" ]; then
+                local threat_source=$(jq -r ".[] | select(.type == \"ip\" and .value == \"$remote\") | .source" "$threat_intel_db" 2>/dev/null | head -1)
+                error_exit "🚨 CRITICAL: Connection to known malicious IP: $remote (source: ${threat_source:-threat_intel})"
+                suspicious_conns=$((suspicious_conns + 1))
+            fi
+        fi
+        
+        # Check against known bad IPs (legacy format)
         if [ -f "$THREAT_INTEL_DB" ]; then
             local bad_ips=""
             if command -v jq &> /dev/null; then
@@ -903,6 +932,12 @@ main() {
     fi
     
     log_message "INFO" "Blue Team analysis completed - $total_issues issues found"
+    
+    # Populate Diamond Model from results
+    if [ -f "$SCRIPT_DIR/diamond_model_correlation.sh" ] && [ -f "$BLUETEAM_RESULTS" ]; then
+        source "$SCRIPT_DIR/diamond_model_correlation.sh" 2>/dev/null || true
+        populate_from_blueteam "$BLUETEAM_RESULTS" 2>/dev/null || true
+    fi
     
     # Send action-based email with AI summary
     if [ -f "$SCRIPT_DIR/action_email_notifier.sh" ] && [ -n "${REPORT_EMAIL:-${ALERT_EMAIL:-}}" ]; then

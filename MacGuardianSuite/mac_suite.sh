@@ -70,9 +70,14 @@ while true; do
     echo "13) Test Email (Send Test Email)"
     echo "14) Performance Monitor (View Performance Stats)"
     echo "15) Advanced Reports (Comparisons, PDF Export)"
-    echo "16) Exit"
+    echo "16) Fix Hardening Issues (Auto-Fix Security Settings)"
+    echo "17) Privacy Mode (Control What's Monitored)"
+    echo "18) Zero Trust Assessment (NIST SP 800-207)"
+    echo "19) Threat Intelligence Feeds (Update & Check IOCs)"
+    echo "20) Diamond Model Correlation (Threat Analysis)"
+    echo "21) Exit"
     echo ""
-    read -p "Select (1-16): " choice
+    read -p "Select (1-21): " choice
     
     case "$choice" in
         1)
@@ -210,12 +215,139 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         16)
+            if [ -f "hardening_auto_fix.sh" ]; then
+                echo ""
+                echo "${bold}🔧 Hardening Auto-Fix${normal}"
+                echo "----------------------------------------"
+                echo "This will fix hardening assessment failures."
+                echo ""
+                echo "1) Dry-run (show what would be fixed)"
+                echo "2) Execute fixes (with confirmation)"
+                echo "3) Auto-fix all (no confirmation - use with caution)"
+                read -p "Select (1-3): " fix_choice
+                case "$fix_choice" in
+                    1)
+                        ./hardening_auto_fix.sh all
+                        ;;
+                    2)
+                        ./hardening_auto_fix.sh all --execute
+                        ;;
+                    3)
+                        ./hardening_auto_fix.sh all --execute --yes
+                        ;;
+                esac
+            else
+                echo "${red}Hardening auto-fix not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        17)
+            if [ -f "privacy_mode.sh" ]; then
+                echo ""
+                echo "${bold}🔒 Privacy Mode${normal}"
+                echo "----------------------------------------"
+                ./privacy_mode.sh status
+                echo ""
+                echo "Change privacy mode:"
+                echo "1) Minimal (essential checks only)"
+                echo "2) Light (basic security)"
+                echo "3) Standard (full suite - default)"
+                echo "4) Full (everything enabled)"
+                read -p "Select (1-4) or press Enter to keep current: " privacy_choice
+                case "$privacy_choice" in
+                    1) ./privacy_mode.sh minimal ;;
+                    2) ./privacy_mode.sh light ;;
+                    3) ./privacy_mode.sh standard ;;
+                    4) ./privacy_mode.sh full ;;
+                esac
+            else
+                echo "${red}Privacy mode not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        18)
+            if [ -f "zero_trust_assessment.sh" ]; then
+                run_script "zero_trust_assessment.sh" "Zero Trust Assessment"
+            else
+                echo "${red}Zero Trust assessment not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        19)
+            if [ -f "threat_intel_feeds.sh" ]; then
+                echo ""
+                echo "${bold}📥 Threat Intelligence Feeds${normal}"
+                echo "----------------------------------------"
+                echo "1) Update threat feeds"
+                echo "2) Check IOC (IP/domain)"
+                echo "3) Export to STIX format"
+                read -p "Select (1-3): " feed_choice
+                case "$feed_choice" in
+                    1)
+                        ./threat_intel_feeds.sh update
+                        ;;
+                    2)
+                        echo "Enter IOC type (ip/domain/hash/url):"
+                        read -r ioc_type
+                        echo "Enter IOC value:"
+                        read -r ioc_value
+                        ./threat_intel_feeds.sh check "$ioc_type" "$ioc_value"
+                        ;;
+                    3)
+                        ./threat_intel_feeds.sh stix
+                        ;;
+                esac
+            else
+                echo "${red}Threat intelligence feeds not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        20)
+            if [ -f "diamond_model_correlation.sh" ]; then
+                echo ""
+                echo "${bold}🔷 Diamond Model Correlation${normal}"
+                echo "----------------------------------------"
+                ./diamond_model_correlation.sh correlate
+                echo ""
+                echo "Options:"
+                echo "1) Populate from Blue Team results"
+                echo "2) Add adversary manually"
+                echo "3) Add infrastructure manually"
+                read -p "Select (1-3) or press Enter to skip: " diamond_choice
+                case "$diamond_choice" in
+                    1)
+                        latest_results=$(ls -t "$HOME/.macguardian/blueteam/results_*.txt" 2>/dev/null | head -1)
+                        if [ -n "$latest_results" ]; then
+                            ./diamond_model_correlation.sh populate "$latest_results"
+                        else
+                            echo "${red}No Blue Team results found. Run Blue Team first.${normal}"
+                        fi
+                        ;;
+                    2)
+                        echo "Enter adversary name:"
+                        read -r adv_name
+                        ./diamond_model_correlation.sh adversary "adv_$(date +%s)" "$adv_name"
+                        ;;
+                    3)
+                        echo "Enter infrastructure type (ip/domain/url):"
+                        read -r infra_type
+                        echo "Enter value:"
+                        read -r infra_value
+                        ./diamond_model_correlation.sh infrastructure "$infra_type" "$infra_value"
+                        ;;
+                esac
+            else
+                echo "${red}Diamond Model correlation not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        21)
             echo ""
             echo "${green}👋 Goodbye! Stay secure!${normal}"
             exit 0
             ;;
         *)
-            echo "${red}❌ Invalid option. Please select 1-16.${normal}"
+            echo "${red}❌ Invalid option. Please select 1-21.${normal}"
             sleep 2
             ;;
     esac

@@ -101,14 +101,14 @@ if [ "$SKIP_UPDATES" != true ]; then
     fi
     
     if type perf_end &> /dev/null; then
-        local duration=$(perf_end "homebrew_update")
+        duration=$(perf_end "homebrew_update")
         if [ -n "$duration" ] && [ "${duration%.*}" -gt 10000 ] 2>/dev/null; then
             info "Homebrew update took ${duration}ms"
         fi
     fi
 
     if [ "$QUIET" != true ]; then
-        echo ""
+echo ""
         echo "${bold}⬆️  Upgrading installed tools...${normal}"
     fi
     
@@ -135,7 +135,7 @@ if [ "$SKIP_UPDATES" != true ]; then
     fi
     
     if type perf_end &> /dev/null; then
-        local duration=$(perf_end "homebrew_upgrade")
+        duration=$(perf_end "homebrew_upgrade")
         if [ -n "$duration" ] && [ "${duration%.*}" -gt 30000 ] 2>/dev/null; then
             info "Homebrew upgrade took ${duration}ms"
         fi
@@ -143,7 +143,7 @@ if [ "$SKIP_UPDATES" != true ]; then
 
     if [ "$QUIET" != true ]; then
         echo ""
-        echo "${bold}🗑️  Cleaning out old versions...${normal}"
+echo "${bold}🗑️  Cleaning out old versions...${normal}"
     fi
     
     # Run cleanup and filter out "Skipping" warnings (these are normal - just means package isn't installed)
@@ -162,28 +162,28 @@ fi
 # macOS system update (interactive unless --yes flag)
 if [ "$SKIP_UPDATES" != true ]; then
     if [ "$QUIET" != true ]; then
-        echo ""
+echo ""
     fi
     
     if [ "$INTERACTIVE" = true ]; then
-        read -p "${bold}📦 Do you want to check for macOS system updates? (y/n): ${normal}" systemUpdate
+read -p "${bold}📦 Do you want to check for macOS system updates? (y/n): ${normal}" systemUpdate
     else
         systemUpdate="n"  # Default to no in non-interactive mode
     fi
     
-    if [[ "$systemUpdate" =~ ^[Yy]$ ]]; then
+if [[ "$systemUpdate" =~ ^[Yy]$ ]]; then
         if [ "$QUIET" != true ]; then
-            echo "${bold}🔍 Looking for system updates...${normal}"
+    echo "${bold}🔍 Looking for system updates...${normal}"
         fi
-        
+
         if softwareupdate -l 2>&1; then
             if [ "$INTERACTIVE" = true ]; then
-                read -p "${bold}⚙️  Install all available updates now? (this might restart your Mac) (y/n): ${normal}" installNow
+    read -p "${bold}⚙️  Install all available updates now? (this might restart your Mac) (y/n): ${normal}" installNow
             else
                 installNow="n"  # Default to no in non-interactive mode
             fi
             
-            if [[ "$installNow" =~ ^[Yy]$ ]]; then
+    if [[ "$installNow" =~ ^[Yy]$ ]]; then
                 check_sudo
                 if sudo softwareupdate -i -a 2>&1; then
                     success "System updates installed successfully."
@@ -197,14 +197,14 @@ if [ "$SKIP_UPDATES" != true ]; then
                 if [ "$QUIET" != true ]; then
                     echo "⏩ Skipped installing updates."
                 fi
-            fi
-        else
+    fi
+else
             warning "Could not check for updates. You may need to check System Settings manually."
             WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
         fi
     else
         if [ "$QUIET" != true ]; then
-            echo "⏩ Skipped checking for macOS updates."
+    echo "⏩ Skipped checking for macOS updates."
         fi
     fi
 fi
@@ -212,10 +212,15 @@ fi
 # Additional Security Checks (Run in Parallel)
 if [ "$QUIET" != true ]; then
     echo ""
-    echo "${bold}🔍 Step 2: Running Security Checks (Parallel Mode)...${normal}"
+    show_step 2 9 "Running Security Checks (Parallel Mode)"
     if [ "${ENABLE_PARALLEL:-true}" = true ]; then
         info "Running security checks in parallel for faster execution"
     fi
+fi
+
+# Performance tracking for parallel checks
+if type perf_start &> /dev/null; then
+    perf_start "security_checks_parallel"
 fi
 
 # Initialize parallel processing if enabled
@@ -270,7 +275,7 @@ wait_all_jobs
 
 # End performance tracking for parallel checks
 if type perf_end &> /dev/null; then
-    local duration=$(perf_end "security_checks_parallel")
+    duration=$(perf_end "security_checks_parallel")
     if [ -n "$duration" ] && [ "${duration%.*}" -gt 5000 ] 2>/dev/null; then
         info "Security checks completed in ${duration}ms"
     fi
@@ -296,7 +301,7 @@ fi
 # ClamAV antivirus
 if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_CLAMAV:-true}" = true ]; then
     if [ "$QUIET" != true ]; then
-        echo ""
+echo ""
         show_step 3 9 "Running Antivirus Scan (ClamAV)"
     fi
     
@@ -305,8 +310,8 @@ if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_CLAMAV:-true}" = true ]; then
         perf_start "clamav_scan"
     fi
 
-    # Ensure ClamAV is installed
-    if ! command -v clamscan &> /dev/null; then
+# Ensure ClamAV is installed
+if ! command -v clamscan &> /dev/null; then
         if [ "$QUIET" != true ]; then
             echo "📦 ClamAV not found. Installing it now..."
         fi
@@ -326,7 +331,7 @@ if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_CLAMAV:-true}" = true ]; then
 
     if [ "${SKIP_CLAMAV:-false}" != "true" ]; then
         if [ "$QUIET" != true ]; then
-            echo "📥 Updating virus definitions..."
+echo "📥 Updating virus definitions..."
         fi
         # Error handling for freshclam
         set +e  # Temporarily disable exit on error
@@ -444,7 +449,7 @@ EXCLUDEEOF
             
             # End performance tracking
             if type perf_end &> /dev/null; then
-                local duration=$(perf_end "clamav_scan")
+                duration=$(perf_end "clamav_scan")
                 if [ -n "$duration" ] && [ "${duration%.*}" -gt 30000 ] 2>/dev/null; then
                     info "Antivirus scan took ${duration}ms"
                 fi
@@ -463,11 +468,11 @@ fi
 # Rootkit check
 if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_RKHUNTER:-true}" = true ]; then
     if [ "$QUIET" != true ]; then
-        echo ""
+echo ""
         echo "${bold}💀 Step 4: Checking for hidden rootkits (rkhunter)...${normal}"
     fi
     
-    if ! command -v rkhunter &> /dev/null; then
+if ! command -v rkhunter &> /dev/null; then
         if [ "$QUIET" != true ]; then
             echo "📦 Rootkit Hunter not found. Installing it now..."
         fi
@@ -528,7 +533,7 @@ fi
 
 # Firewall check
 if [ "$QUIET" != true ]; then
-    echo ""
+echo ""
     echo "${bold}🧱 Step 5: Checking Firewall status...${normal}"
 fi
 # Try multiple methods to check firewall
@@ -548,12 +553,12 @@ if [ -n "$FIREWALL_STATUS" ]; then
         warning "Firewall is OFF. You should enable it (System Settings > Network > Firewall)."
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
     else
-        case $FIREWALL_STATUS in
+case $FIREWALL_STATUS in
             0) warning "Firewall is OFF. You should enable it (System Settings > Network > Firewall)."; ISSUES_FOUND=$((ISSUES_FOUND + 1));;
             1) warning "Firewall is partially on. Turn it fully ON for better security."; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
             2) success "Firewall is ON and protecting your Mac.";;
             *) warning "Unknown firewall status: $FIREWALL_STATUS"; WARNINGS_FOUND=$((WARNINGS_FOUND + 1));;
-        esac
+esac
     fi
 else
     # Last resort: try system_profiler
@@ -591,7 +596,7 @@ fi
 
 # System Integrity Protection (SIP) check
 if [ "$QUIET" != true ]; then
-    echo ""
+echo ""
     echo "${bold}🛡️  Step 8: Checking System Integrity Protection (SIP)...${normal}"
 fi
 if csrutil status 2>/dev/null | grep -q "enabled"; then
@@ -605,7 +610,7 @@ fi
 
 # Backup reminder
 if [ "$QUIET" != true ]; then
-    echo ""
+echo ""
     echo "${bold}💾 Step 9: Backup Status${normal}"
 fi
 if tmutil status 2>/dev/null | grep -q "Running = 1"; then
@@ -617,7 +622,7 @@ fi
 
 # Final message
 if [ "$QUIET" != true ]; then
-    echo ""
+echo ""
     if [ $ISSUES_FOUND -eq 0 ] && [ $WARNINGS_FOUND -eq 0 ]; then
         echo "${bold}${green}🎉 All done! Your Mac is now cleaner, safer, and more up to date.${normal}"
         # Don't send notification when everything is clear (reduces spam)
@@ -628,7 +633,7 @@ if [ "$QUIET" != true ]; then
     else
         echo "${bold}${yellow}✅ Completed with $WARNINGS_FOUND warning(s). Review the output above.${normal}"
     fi
-    echo "Run this script once a week or so to keep your system fresh. Stay secure out there, warrior. 🔐🧠💻"
+echo "Run this script once a week or so to keep your system fresh. Stay secure out there, warrior. 🔐🧠💻"
 fi
 
 # Generate report if requested
