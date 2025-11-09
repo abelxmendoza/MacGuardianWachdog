@@ -1,24 +1,23 @@
 # MacGuardian Suite 🛡️
 
-**Enterprise-Grade Security Suite for macOS**
+**Comprehensive Security Suite for macOS**
 
-A comprehensive, all-in-one security and maintenance platform for macOS that combines antivirus, threat detection, AI/ML analysis, automated remediation, and enterprise-level monitoring—all for **FREE**.
+A feature-rich, all-in-one security and maintenance platform for macOS that combines antivirus, threat detection, behavioral analysis, automated remediation, and monitoring—all for **FREE**.
 
-> **Market Value**: $30,000-60,000/year if purchased commercially  
-> **Your Cost**: FREE
+> **Note**: This suite provides many features found in commercial security tools. While not a direct replacement for enterprise EDR/XDR solutions, it offers substantial value for personal and small business use.
 
 [![macOS](https://img.shields.io/badge/macOS-10.13+-blue.svg)](https://www.apple.com/macos)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-Enterprise--Ready-success.svg)]()
+[![Status](https://img.shields.io/badge/status-Active-success.svg)]()
 
 ---
 
 ## 🎯 What Makes This Special
 
 - ✅ **All-in-One**: Combines 15+ security tools in one suite
-- ✅ **AI/ML Powered**: Behavioral analysis and threat prediction
+- ✅ **Behavioral Analysis**: ML-based pattern recognition and anomaly detection
 - ✅ **Auto-Fix**: Automatically remediates common security issues
-- ✅ **Enterprise-Grade**: Rivals $30K+ commercial security platforms
+- ✅ **Feature-Rich**: Combines capabilities from multiple commercial security tools
 - ✅ **Privacy-First**: All processing happens locally on your Mac
 - ✅ **Open Source**: Fully customizable and transparent
 - ✅ **Performance Optimized**: Built-in performance monitoring and optimization
@@ -42,7 +41,22 @@ chmod +x mac_suite.sh MacGuardianSuite/*.sh
 ./mac_suite.sh
 ```
 
+### Required macOS Permissions
+
+Some features require macOS permissions. You'll be prompted when needed:
+- **Full Disk Access**: For file integrity monitoring (System Settings > Privacy & Security > Full Disk Access)
+- **Network Access**: For threat intelligence feeds (System Settings > Privacy & Security > Network)
+
+See [SECURITY.md](SECURITY.md) for detailed permission requirements.
+
 ## ⚡ New Features (Latest Update)
+
+### 🛡️ Auto-Fix Safety (NEW!)
+- **Dry-Run by Default**: All remediation runs in preview mode first
+- **Quarantine System**: Files are moved to quarantine instead of being deleted
+- **Rollback Capability**: JSON manifests with SHA-256 checksums for easy restoration
+- **Confirmation Required**: Dangerous operations require explicit user approval
+- **Manifest Tracking**: All changes tracked with metadata for audit trail
 
 ### Performance Monitoring
 - Track execution times for all operations
@@ -324,9 +338,9 @@ ALERT_ENABLED=true
 | Performance Monitoring | ✅ Built-in | ❌ Custom | $500-1,000/year |
 | Error Recovery | ✅ Auto-retry | ❌ Manual | $1,000-2,000/year |
 | Advanced Reporting | ✅ Comparisons/PDF | ✅ Enterprise | $500-1,500/year |
-| **Total Value** | **✅ All** | **❌ Fragmented** | **$30,000-60,000/year** |
+| **Total Value** | **✅ All** | **❌ Fragmented** | **$10,000-20,000/year** |
 
-**You get all of this for FREE!**
+**Note**: These are approximate costs for equivalent commercial tools. MacGuardian Suite provides similar functionality for FREE, though it's designed for personal/small business use rather than enterprise-scale deployments.
 
 ---
 
@@ -488,7 +502,7 @@ Run the verification suite:
 - **AI/ML Models**: 5+
 - **Algorithms**: 20+
 - **Scripts/Modules**: 35+
-- **Market Value**: $30,000-60,000/year
+- **Equivalent Commercial Value**: $10,000-20,000/year (approximate)
 - **Your Cost**: FREE
 
 ---
@@ -506,7 +520,18 @@ Contributions welcome! Areas for improvement:
 
 ## 📝 License
 
-This project is provided as-is for personal and commercial use.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+## 🔒 Security & Privacy
+
+- **[SECURITY.md](SECURITY.md)**: Security policy, vulnerability reporting, and best practices
+- **[PRIVACY.md](PRIVACY.md)**: Data collection, retention, and privacy controls
+
+**Key Safety Features**:
+- Dry-run mode by default for all remediation
+- Quarantine system (files moved, not deleted)
+- Rollback capability with JSON manifests
+- All data stored locally on your Mac
 
 ---
 
@@ -532,14 +557,20 @@ Built with:
 
 ## 🎉 What You've Built
 
-You've created a **$30,000-60,000/year enterprise security platform** that:
-- ✅ Rivals commercial solutions costing thousands
+You've created a **comprehensive security suite** that:
 - ✅ Combines 15+ security tools seamlessly
-- ✅ Includes AI/ML capabilities usually costing $10K+/year
-- ✅ Provides automated remediation (rare in market)
-- ✅ Offers enterprise-grade features for FREE
+- ✅ Includes behavioral analysis and pattern recognition
+- ✅ Provides automated remediation with safety features (dry-run, quarantine, rollback)
+- ✅ Offers enterprise-like features for personal and small business use
+- ✅ Runs entirely locally with full privacy control
 
-**Congratulations on building something truly valuable!** 🚀
+**This is a valuable defensive security toolkit for macOS!** 🚀
+
+**Important Notes**:
+- Designed for personal/small business use, not enterprise-scale deployments
+- Requires user review of quarantined files before permanent deletion
+- Some features require macOS permissions (Full Disk Access, etc.)
+- See [SECURITY.md](SECURITY.md) and [PRIVACY.md](PRIVACY.md) for details
 
 ---
 

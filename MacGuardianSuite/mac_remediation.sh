@@ -22,11 +22,13 @@ error_handler() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/utils.sh"
 source "$SCRIPT_DIR/config.sh"
+source "$SCRIPT_DIR/quarantine_manager.sh" 2>/dev/null || true
 
 # Remediation specific config
 REMEDIATION_DIR="$CONFIG_DIR/remediation"
 REMEDIATION_LOG="$REMEDIATION_DIR/remediation_$(date +%Y%m%d_%H%M%S).log"
 REMEDIATION_BACKUP="$REMEDIATION_DIR/backups"
+SESSION_ID=$(date +%Y%m%d_%H%M%S)
 mkdir -p "$REMEDIATION_DIR" "$REMEDIATION_BACKUP"
 
 # Parse arguments
@@ -365,22 +367,20 @@ fix_launch_items() {
         fi
     fi
     
-    # Remove launch items
+    # Quarantine launch items
     local removed=0
     for item in "${suspicious_items[@]}"; do
         # Unload first
         launchctl unload "$item" 2>/dev/null || true
         
-        # Backup before removal
-        cp "$item" "$REMEDIATION_BACKUP/$(basename "$item").backup" 2>/dev/null || true
-        
-        if rm -f "$item" 2>/dev/null; then
+        # Quarantine instead of deleting
+        if manifest_path=$(quarantine_file "$item" "suspicious_launch_item" "LAUNCH_ITEM_REMOVE" 2>/dev/null); then
             removed=$((removed + 1))
-            success "Removed: $item"
-            log_remediation "LAUNCH_ITEM_REMOVE" "$item" "SUCCESS"
+            success "Quarantined: $item"
+            log_remediation "LAUNCH_ITEM_QUARANTINE" "$item" "SUCCESS"
         else
-            warning "Failed to remove: $item"
-            log_remediation "LAUNCH_ITEM_REMOVE" "$item" "FAILED"
+            warning "Failed to quarantine: $item"
+            log_remediation "LAUNCH_ITEM_QUARANTINE" "$item" "FAILED"
         fi
     done
     
@@ -458,12 +458,14 @@ fix_from_blueteam_results() {
                         if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
                             for file in $suspicious_files; do
                                 if [ -f "$file" ]; then
-                                    # Backup first
-                                    cp "$file" "$REMEDIATION_BACKUP/$(basename "$file").backup" 2>/dev/null || true
-                                    if rm -f "$file" 2>/dev/null; then
-                                        success "Removed: $file"
-                                        log_remediation "FILE_REMOVE" "$file" "SUCCESS"
+                                    # Quarantine instead of deleting
+                                    if manifest_path=$(quarantine_file "$file" "suspicious_file_from_blueteam" "FILE_REMOVE" 2>/dev/null); then
+                                        success "Quarantined: $file"
+                                        log_remediation "FILE_QUARANTINE" "$file" "SUCCESS"
                                         fixes_applied=$((fixes_applied + 1))
+                                    else
+                                        warning "Failed to quarantine: $file"
+                                        log_remediation "FILE_QUARANTINE" "$file" "FAILED"
                                     fi
                                 fi
                             done
@@ -524,6 +526,11 @@ main() {
         fix_launch_items && fixes_applied=$((fixes_applied + 1))
     fi
     
+    # Create rollback manifest if files were quarantined
+    if [ "$DRY_RUN" != true ] && [ $fixes_applied -gt 0 ]; then
+        create_rollback_manifest "$SESSION_ID" >/dev/null 2>&1 || true
+    fi
+    
     # Summary
     if [ "$QUIET" != true ]; then
         echo ""
@@ -533,6 +540,14 @@ main() {
         else
             echo "${bold}${green}✅ Remediation Complete${normal}"
             echo "${green}   Applied $fixes_applied fix(es)${normal}"
+            if [ $fixes_applied -gt 0 ]; then
+                echo ""
+                echo "${cyan}📋 Quarantine Info:${normal}"
+                echo "   Quarantine: $QUARANTINE_DIR"
+                echo "   Manifests: $QUARANTINE_MANIFEST"
+                echo "   To restore files: ./quarantine_manager.sh list"
+                echo "   To restore a file: ./quarantine_manager.sh restore <manifest>"
+            fi
         fi
         echo ""
         echo "Remediation log: $REMEDIATION_LOG"
