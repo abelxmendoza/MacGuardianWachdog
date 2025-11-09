@@ -75,7 +75,8 @@ class EventBus:
     def register_output(self, handler: Callable):
         """Register an output handler"""
         self.output_handlers.append(handler)
-        print(f"✅ Registered output handler: {handler.__name__}")
+        handler_name = getattr(handler, '__name__', handler.__class__.__name__)
+        print(f"✅ Registered output handler: {handler_name}")
     
     def emit(self, event: Dict):
         """
