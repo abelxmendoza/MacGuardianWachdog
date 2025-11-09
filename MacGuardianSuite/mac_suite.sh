@@ -369,13 +369,13 @@ while true; do
             fi
             read -p "Press Enter to continue..."
             ;;
-        21)
+        22)
             echo ""
             echo "${green}👋 Goodbye! Stay secure!${normal}"
             exit 0
             ;;
         *)
-            echo "${red}❌ Invalid option. Please select 1-21.${normal}"
+            echo "${red}❌ Invalid option. Please select 1-22.${normal}"
             sleep 2
             ;;
     esac
