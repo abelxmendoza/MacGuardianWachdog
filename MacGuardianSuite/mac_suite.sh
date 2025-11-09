@@ -275,6 +275,33 @@ while true; do
             read -p "Press Enter to continue..."
             ;;
         19)
+            if [ -f "zero_trust_auto_fix.sh" ]; then
+                echo ""
+                echo "${bold}🛡️  Zero Trust Auto-Fix${normal}"
+                echo "----------------------------------------"
+                echo "This will fix Zero Trust assessment failures."
+                echo ""
+                echo "1) Dry-run (show what would be fixed)"
+                echo "2) Execute fixes (with confirmation)"
+                echo "3) Auto-fix all (no confirmation - use with caution)"
+                read -p "Select (1-3): " fix_choice
+                case "$fix_choice" in
+                    1)
+                        ./zero_trust_auto_fix.sh all
+                        ;;
+                    2)
+                        ./zero_trust_auto_fix.sh all --execute
+                        ;;
+                    3)
+                        ./zero_trust_auto_fix.sh all --execute --yes
+                        ;;
+                esac
+            else
+                echo "${red}Zero Trust auto-fix not found${normal}"
+            fi
+            read -p "Press Enter to continue..."
+            ;;
+        20)
             if [ -f "threat_intel_feeds.sh" ]; then
                 echo ""
                 echo "${bold}📥 Threat Intelligence Feeds${normal}"
