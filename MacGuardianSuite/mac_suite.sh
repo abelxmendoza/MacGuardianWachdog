@@ -73,11 +73,12 @@ while true; do
     echo "16) Fix Hardening Issues (Auto-Fix Security Settings)"
     echo "17) Privacy Mode (Control What's Monitored)"
     echo "18) Zero Trust Assessment (NIST SP 800-207)"
-    echo "19) Threat Intelligence Feeds (Update & Check IOCs)"
-    echo "20) Diamond Model Correlation (Threat Analysis)"
-    echo "21) Exit"
+    echo "19) Zero Trust Auto-Fix (Fix Zero Trust Issues)"
+    echo "20) Threat Intelligence Feeds (Update & Check IOCs)"
+    echo "21) Diamond Model Correlation (Threat Analysis)"
+    echo "22) Exit"
     echo ""
-    read -p "Select (1-21): " choice
+    read -p "Select (1-22): " choice
     
     case "$choice" in
         1)
