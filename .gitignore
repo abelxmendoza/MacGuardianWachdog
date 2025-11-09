@@ -31,3 +31,12 @@ build/
 # Backup files
 *.bak
 *.backup
+
+# Release artifacts
+release/
+*.tar.gz
+*.zip
+*.pkg
+*.sha256
+*.p12
+certificate.p12
