@@ -19,6 +19,9 @@ build/
 *.swp
 *~
 
+# Swift Package Manager
+.build/
+
 # MacGuardian runtime files
 .macguardian/
 .mac_watchdog_*

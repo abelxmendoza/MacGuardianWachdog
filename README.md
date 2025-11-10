@@ -41,6 +41,17 @@ chmod +x mac_suite.sh MacGuardianSuite/*.sh
 ./mac_suite.sh
 ```
 
+### SwiftUI Companion App (Experimental)
+
+A native macOS user interface built with SwiftUI is available in `MacGuardianSuiteUI`. The app provides a dashboard to launch the
+major MacGuardian modules, monitor live shell output, and reveal script locations in Finder.
+
+1. Open `MacGuardianSuiteUI/Package.swift` in Xcode (File → Open…)
+2. Select the **MacGuardianSuiteUI** scheme and run the app on macOS 12+
+
+> The SwiftUI app wraps the existing shell workflows, so the underlying scripts must remain executable and accessible. Set the
+> repository path inside the app if you keep the shell tools outside of `~/MacGuardianWachdog`.
+
 ### Required macOS Permissions
 
 Some features require macOS permissions. You'll be prompted when needed:
