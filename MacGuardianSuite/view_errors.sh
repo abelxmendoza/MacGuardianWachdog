@@ -7,19 +7,22 @@
 
 set -euo pipefail
 
+# Set TERM if not set (required for tput)
+export TERM="${TERM:-xterm-256color}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/utils.sh"
 source "$SCRIPT_DIR/error_tracker.sh" 2>/dev/null || {
     error_exit "Error tracker not available"
 }
 
-# Colors
-bold=$(tput bold 2>/dev/null || echo "")
-normal=$(tput sgr0 2>/dev/null || echo "")
-green=$(tput setaf 2 2>/dev/null || echo "")
-red=$(tput setaf 1 2>/dev/null || echo "")
-yellow=$(tput setaf 3 2>/dev/null || echo "")
-cyan=$(tput setaf 6 2>/dev/null || echo "")
+# Colors (already defined in utils.sh, but define here as fallback)
+bold="${bold:-$(tput bold 2>/dev/null || echo "")}"
+normal="${normal:-$(tput sgr0 2>/dev/null || echo "")}"
+green="${green:-$(tput setaf 2 2>/dev/null || echo "")}"
+red="${red:-$(tput setaf 1 2>/dev/null || echo "")}"
+yellow="${yellow:-$(tput setaf 3 2>/dev/null || echo "")}"
+cyan="${cyan:-$(tput setaf 6 2>/dev/null || echo "")}"
 
 # Display errors in a readable format
 display_errors() {

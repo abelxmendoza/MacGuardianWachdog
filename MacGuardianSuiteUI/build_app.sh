@@ -111,12 +111,30 @@ cat > "$CONTENTS_DIR/Info.plist" <<EOF
     <false/>
     <key>CFBundleIconFile</key>
     <string>MacGlogo</string>
+    <key>CFBundleIconFiles</key>
+    <array>
+        <string>MacGlogo</string>
+    </array>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
 </dict>
 </plist>
 EOF
 
-# Create PkgInfo (optional but helps with app recognition)
+# Create PkgInfo (required for app recognition)
 echo "APPL????" > "$CONTENTS_DIR/PkgInfo"
+
+# Set bundle attributes to ensure macOS recognizes it as an app
+/usr/bin/SetFile -a B "$APP_BUNDLE" 2>/dev/null || true
+/usr/bin/SetFile -a C "$APP_BUNDLE" 2>/dev/null || true
+
+# Touch the bundle to update its modification time
+touch "$APP_BUNDLE"
+touch "$CONTENTS_DIR/Info.plist"
+touch "$CONTENTS_DIR/PkgInfo"
+
+# Convert Info.plist to binary format (more reliable)
+plutil -convert binary1 "$CONTENTS_DIR/Info.plist" 2>/dev/null || true
 
 echo "✅ App bundle created at: $APP_BUNDLE"
 echo ""

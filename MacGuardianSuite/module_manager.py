@@ -100,21 +100,31 @@ class ModuleManager:
     
     def load_outputs(self):
         """Load and initialize output modules"""
-        from outputs import splunk
+        outputs = {}
         
-        outputs = {
-            "splunk": splunk.SplunkOutput
-        }
+        # Try to load Splunk output (requires requests module)
+        try:
+            from outputs import splunk
+            outputs["splunk"] = splunk.SplunkOutput
+        except ImportError as e:
+            if "requests" in str(e):
+                print(f"⚠️  Splunk output module not available (requests module not installed)")
+                print(f"   Install with: pip3 install requests")
+            else:
+                print(f"⚠️  Could not load Splunk output: {e}")
         
         for name, output_class in outputs.items():
             section = f"outputs.{name}"
             if section in self.config:
                 config = self.config[section]
                 if config.get("enabled", False):
-                    output = output_class(config)
-                    self.event_bus.register_output(output)
-                    self.outputs.append(output)
-                    print(f"✅ Loaded output: {name}")
+                    try:
+                        output = output_class(config)
+                        self.event_bus.register_output(output)
+                        self.outputs.append(output)
+                        print(f"✅ Loaded output: {name}")
+                    except Exception as e:
+                        print(f"⚠️  Failed to initialize output {name}: {e}")
         
         # Always load local output
         from outputs.local import LocalOutput

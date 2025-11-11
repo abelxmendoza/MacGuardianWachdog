@@ -202,13 +202,13 @@ get_optimization_suggestions() {
 main() {
     case "${1:-stats}" in
         start)
-            perf_start "$2"
+            perf_start "${2:-}"
             ;;
         end)
-            perf_end "$2"
+            perf_end "${2:-}"
             ;;
         stats)
-            perf_stats "$2" "$3"
+            perf_stats "${2:-}" "${3:-}"
             ;;
         bottlenecks)
             identify_bottlenecks
