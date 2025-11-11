@@ -9,6 +9,11 @@
 CONFIG_DIR="$HOME/.macguardian"
 MAIN_CONFIG="$CONFIG_DIR/config.conf"
 
+THEME_PROFILE_DEFAULT="omega_tech_black_ops"
+THEME_DIR="$CONFIG_DIR/themes/$THEME_PROFILE_DEFAULT"
+THEME_PROFILE_FILE="$THEME_DIR/profile.conf"
+THEME_TEMPLATE_FILE="$THEME_DIR/alert_template.html"
+
 # Default settings
 DEFAULT_ALERT_EMAIL="abelxmendoza@gmail.com"
 DEFAULT_MONITOR_PATHS=("$HOME/Documents" "$HOME/Desktop")
@@ -33,6 +38,13 @@ MONITOR_PATHS=($(printf '"%s" ' "${DEFAULT_MONITOR_PATHS[@]}"))
 SCAN_DIR="$DEFAULT_SCAN_DIR"
 HONEYPOT_DIR="$DEFAULT_HONEYPOT_DIR"
 LOG_DIR="$DEFAULT_LOG_DIR"
+
+# Theme settings
+THEME_PROFILE="omega_tech_black_ops"
+THEME_SUBJECT_PREFIX="[Ω-OPS]"
+THEME_HEADLINE="OMEGA TECH // BLACK-OPS ALERT"
+THEME_STATUS_LINE="Automation Wing // Active Oversight"
+THEME_TAGLINE="Omega Technologies // Watchdog Division"
 
 # Notification settings
 ENABLE_NOTIFICATIONS=true
@@ -73,6 +85,56 @@ ALERT_RULES_FILE="$CONFIG_DIR/alerts/rules.conf"
 EOF
         echo "✅ Configuration initialized at $MAIN_CONFIG"
     fi
+
+    mkdir -p "$THEME_DIR"
+
+    if [ ! -f "$THEME_PROFILE_FILE" ]; then
+        cat > "$THEME_PROFILE_FILE" <<'EOF'
+THEME_NAME="Omega Tech Black-Ops"
+THEME_ID="omega_tech_black_ops"
+THEME_SUBJECT_PREFIX="[Ω-OPS]"
+THEME_HEADLINE="OMEGA TECH // BLACK-OPS ALERT"
+THEME_STATUS_LINE="Automation Wing // Active Oversight"
+THEME_TAGLINE="Omega Technologies // Watchdog Division"
+THEME_PRIMARY_COLOR="#0D0D0D"
+THEME_ACCENT_PURPLE="#8C00FF"
+THEME_ACCENT_RED="#FF1100"
+THEME_HIGHLIGHT="#FFE600"
+THEME_TEXT="#E5E5E5"
+THEME_MUTED_TEXT="#666666"
+EOF
+    fi
+
+    if [ ! -f "$THEME_TEMPLATE_FILE" ]; then
+        cat > "$THEME_TEMPLATE_FILE" <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{headline}}</title>
+    <style>
+        body { background-color: #0D0D0D; color: #E5E5E5; font-family: 'Courier New', Menlo, monospace; margin: 0; padding: 0; }
+        .container { max-width: 640px; margin: 0 auto; padding: 32px 24px; background-color: #111111; border: 1px solid #1F1F1F; }
+        .headline { color: #8C00FF; text-transform: uppercase; letter-spacing: 0.15em; font-size: 20px; }
+        .status { color: #FFE600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.25em; margin-bottom: 24px; }
+        .body { line-height: 1.6; font-size: 14px; }
+        .body strong { color: #FF1100; }
+        .footer { margin-top: 32px; font-size: 12px; color: #666666; letter-spacing: 0.12em; text-transform: uppercase; }
+        .tagline { margin-top: 16px; font-size: 12px; color: #8C00FF; letter-spacing: 0.18em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="headline">{{headline}}</div>
+        <div class="status">{{status_line}}</div>
+        <div class="body">{{body}}</div>
+        <div class="tagline">{{tagline}}</div>
+        <div class="footer">Omega Technologies &bull; Black-Ops Watchdog</div>
+    </div>
+</body>
+</html>
+EOF
+    fi
 }
 
 # Load configuration
@@ -101,7 +163,17 @@ load_config() {
         CLAMAV_MAX_FILESIZE=100M
         CLAMAV_MAX_FILES=50000
     fi
-    
+
+    if [ -f "$THEME_PROFILE_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$THEME_PROFILE_FILE"
+    fi
+
+    THEME_SUBJECT_PREFIX=${THEME_SUBJECT_PREFIX:-"[Ω-OPS]"}
+    THEME_HEADLINE=${THEME_HEADLINE:-"OMEGA TECH // BLACK-OPS ALERT"}
+    THEME_STATUS_LINE=${THEME_STATUS_LINE:-"Automation Wing // Active Oversight"}
+    THEME_TAGLINE=${THEME_TAGLINE:-"Omega Technologies // Watchdog Division"}
+
     # Ensure directories exist
     mkdir -p "$LOG_DIR"
     mkdir -p "${REPORT_DIR:-$CONFIG_DIR/reports}"
