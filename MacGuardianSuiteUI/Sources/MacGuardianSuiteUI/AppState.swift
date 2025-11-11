@@ -61,7 +61,8 @@ final class WorkspaceState: ObservableObject {
     @Published var execution: CommandExecution?
 
     init(defaultPath: String = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("MacGuardianWachdog").path) {
+        .appendingPathComponent("Desktop")
+        .appendingPathComponent("MacGuardianProject").path) {
         self.repositoryPath = defaultPath
     }
 
@@ -123,21 +124,21 @@ final class ShellCommandRunner {
 
             switch tool.kind {
             case .shell:
-                process.launchPath = "/bin/zsh"
+                process.executableURL = URL(fileURLWithPath: "/bin/zsh")
                 let command = self.shellCommand(for: tool, workspace: workspace)
                 process.arguments = ["-lc", command]
             case .python:
-                process.launchPath = "/usr/bin/python3"
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
                 process.arguments = [workspace.resolve(path: tool.relativePath)] + tool.arguments
             }
 
             let handle = pipe.fileHandleForReading
-            let buffer = NSMutableData()
+            var observer: NSObjectProtocol?
 
-            NotificationCenter.default.addObserver(forName: .NSFileHandleDataAvailable, object: handle, queue: nil) { _ in
+            observer = NotificationCenter.default.addObserver(forName: .NSFileHandleDataAvailable, object: handle, queue: nil) { [weak handle] _ in
+                guard let handle = handle else { return }
                 let data = handle.availableData
                 if data.count > 0 {
-                    buffer.append(data)
                     if let chunk = String(data: data, encoding: .utf8) {
                         DispatchQueue.main.async {
                             execution.log.append(contentsOf: chunk)
@@ -152,6 +153,9 @@ final class ShellCommandRunner {
             do {
                 try process.run()
             } catch {
+                if let observer = observer {
+                    NotificationCenter.default.removeObserver(observer)
+                }
                 DispatchQueue.main.async {
                     execution.state = .failed(error.localizedDescription)
                     execution.finishedAt = Date()
@@ -161,6 +165,19 @@ final class ShellCommandRunner {
             }
 
             process.waitUntilExit()
+            
+            // Read any remaining data
+            let remainingData = handle.readDataToEndOfFile()
+            if remainingData.count > 0, let remainingChunk = String(data: remainingData, encoding: .utf8) {
+                DispatchQueue.main.async {
+                    execution.log.append(contentsOf: remainingChunk)
+                }
+            }
+            
+            if let observer = observer {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            
             let status = process.terminationStatus
             DispatchQueue.main.async {
                 execution.finishedAt = Date()

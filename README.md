@@ -24,6 +24,7 @@ A feature-rich, all-in-one security and maintenance platform for macOS that comb
 - ✅ **Self-Healing**: Automatic error recovery and remediation
 - ✅ **User-Friendly**: Progress bars, step indicators, and helpful error messages
 - ✅ **Advanced Reporting**: Comparisons, PDF exports, and custom templates
+- ✅ **Native macOS App**: Beautiful SwiftUI interface with Dock integration
 
 ---
 
@@ -41,16 +42,39 @@ chmod +x mac_suite.sh MacGuardianSuite/*.sh
 ./mac_suite.sh
 ```
 
-### SwiftUI Companion App (Experimental)
+### 🖥️ SwiftUI Companion App
 
-A native macOS user interface built with SwiftUI is available in `MacGuardianSuiteUI`. The app provides a dashboard to launch the
-major MacGuardian modules, monitor live shell output, and reveal script locations in Finder.
+A **native macOS application** built with SwiftUI provides a beautiful, modern interface for MacGuardian Suite. The app features:
 
-1. Open `MacGuardianSuiteUI/Package.swift` in Xcode (File → Open…)
-2. Select the **MacGuardianSuiteUI** scheme and run the app on macOS 12+
+- **Visual Dashboard**: Browse all MacGuardian tools organized by category
+- **Live Output Streaming**: See real-time logs as scripts execute
+- **One-Click Execution**: Run any module with a single click
+- **Native macOS Integration**: Appears in Dock, Spotlight, and Launchpad
+- **Repository Management**: Easy path configuration with Finder integration
 
-> The SwiftUI app wraps the existing shell workflows, so the underlying scripts must remain executable and accessible. Set the
-> repository path inside the app if you keep the shell tools outside of `~/MacGuardianWachdog`.
+#### Building & Installing the App
+
+**Quick Install:**
+```bash
+cd MacGuardianSuiteUI
+./build_app.sh
+# Then drag "MacGuardian Suite.app" from .build/ to your Applications folder
+```
+
+**Manual Build:**
+```bash
+cd MacGuardianSuiteUI
+swift build -c release
+# The executable will be in .build/release/MacGuardianSuiteUI
+```
+
+**Requirements:**
+- macOS 14.0 or later
+- Swift 5.9+ (included with Xcode)
+
+Once installed, launch "MacGuardian Suite" from Applications, Spotlight (Cmd+Space), or the Dock. The app will default to `/Users/[username]/Desktop/MacGuardianProject` but you can change the repository path in the app's sidebar.
+
+> **Note**: The SwiftUI app wraps the existing shell workflows, so the underlying scripts must remain executable and accessible. Set the repository path inside the app if you keep the shell tools in a different location.
 
 ### Required macOS Permissions
 
@@ -384,6 +408,15 @@ MacGuardianProject/
 │   ├── ai_engine.py               # Python AI engine
 │   ├── ml_engine.py               # Advanced ML engine
 │   └── install_scheduler.sh       # Scheduler installer
+├── MacGuardianSuiteUI/            # Native macOS SwiftUI App
+│   ├── Package.swift              # Swift package manifest
+│   ├── build_app.sh               # App bundle builder
+│   └── Sources/
+│       └── MacGuardianSuiteUI/
+│           ├── MacGuardianSuiteUIApp.swift  # App entry point
+│           ├── ContentView.swift           # Main interface
+│           ├── ToolDetailView.swift         # Tool execution view
+│           └── AppState.swift               # State management
 └── README.md                      # This file
 ```
 
