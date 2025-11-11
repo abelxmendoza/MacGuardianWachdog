@@ -144,6 +144,7 @@ load_config() {
     else
         # Use defaults
         ALERT_EMAIL="$DEFAULT_ALERT_EMAIL"
+        REPORT_EMAIL="$DEFAULT_ALERT_EMAIL"  # Use same email for reports
         MONITOR_PATHS=("${DEFAULT_MONITOR_PATHS[@]}")
         SCAN_DIR="$DEFAULT_SCAN_DIR"
         HONEYPOT_DIR="$DEFAULT_HONEYPOT_DIR"
@@ -163,6 +164,9 @@ load_config() {
         CLAMAV_MAX_FILESIZE=100M
         CLAMAV_MAX_FILES=50000
     fi
+    
+    # Ensure REPORT_EMAIL is set (fallback to ALERT_EMAIL if not set)
+    REPORT_EMAIL="${REPORT_EMAIL:-${ALERT_EMAIL:-$DEFAULT_ALERT_EMAIL}}"
 
     if [ -f "$THEME_PROFILE_FILE" ]; then
         # shellcheck disable=SC1090

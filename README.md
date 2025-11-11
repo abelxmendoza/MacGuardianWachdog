@@ -1,8 +1,14 @@
+<div align="center">
+
 # MacGuardian Suite 🛡️
+
+![MacGuardian Logo](MacGuardianSuiteUI/Resources/images/MacGlogo.png)
 
 **Comprehensive Security Suite for macOS**
 
 A feature-rich, all-in-one security and maintenance platform for macOS that combines antivirus, threat detection, behavioral analysis, automated remediation, and monitoring—all for **FREE**.
+
+</div>
 
 > **Note**: This suite provides many features found in commercial security tools. While not a direct replacement for enterprise EDR/XDR solutions, it offers substantial value for personal and small business use.
 
@@ -30,51 +36,140 @@ A feature-rich, all-in-one security and maintenance platform for macOS that comb
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- **macOS 10.13 or later** (for shell scripts)
+- **macOS 14.0 or later** (for SwiftUI app)
+- **Homebrew** ([install here](https://brew.sh)) - for package management
+- **Xcode Command Line Tools** (for SwiftUI app)
+  ```bash
+  xcode-select --install
+  ```
+
+### Installation Steps
+
+#### Step 1: Clone the Repository
+
 ```bash
-# Clone the repository
 git clone https://github.com/abelxmendoza/MacGuardianWachdog.git
 cd MacGuardianWachdog
+```
 
-# Make scripts executable
+#### Step 2: Make Scripts Executable
+
+```bash
 chmod +x mac_suite.sh MacGuardianSuite/*.sh
+```
 
-# Run the main menu
+#### Step 3: Run the Suite
+
+**Option A: Command Line Interface**
+```bash
 ./mac_suite.sh
 ```
 
-### 🖥️ SwiftUI Companion App
+**Option B: Native macOS App** (Recommended - see below)
 
-A **native macOS application** built with SwiftUI provides a beautiful, modern interface for MacGuardian Suite. The app features:
+---
+
+### 🖥️ SwiftUI Companion App Setup
+
+A **native macOS application** built with SwiftUI provides a beautiful, modern interface for MacGuardian Suite.
+
+#### App Features
 
 - **Visual Dashboard**: Browse all MacGuardian tools organized by category
 - **Live Output Streaming**: See real-time logs as scripts execute
 - **One-Click Execution**: Run any module with a single click
 - **Native macOS Integration**: Appears in Dock, Spotlight, and Launchpad
 - **Repository Management**: Easy path configuration with Finder integration
+- **Safety Confirmations**: Built-in safeguards for destructive operations
+- **Execution History**: Track all script runs with timestamps and results
+- **Reports Viewer**: Browse and preview security reports
+- **Settings Panel**: Configure email, safe mode, and repository path
 
-#### Building & Installing the App
+#### Building the App
 
-**Quick Install:**
+**Method 1: Quick Install (Recommended)**
 ```bash
 cd MacGuardianSuiteUI
 ./build_app.sh
-# Then drag "MacGuardian Suite.app" from .build/ to your Applications folder
 ```
 
-**Manual Build:**
+This will:
+- Build the SwiftUI app in release mode
+- Create a proper `.app` bundle
+- Generate the app icon from `MacGlogo.png`
+- Copy all resources to the bundle
+
+**Method 2: Manual Build**
 ```bash
 cd MacGuardianSuiteUI
 swift build -c release
 # The executable will be in .build/release/MacGuardianSuiteUI
 ```
 
-**Requirements:**
-- macOS 14.0 or later
-- Swift 5.9+ (included with Xcode)
+#### Installing the App
 
-Once installed, launch "MacGuardian Suite" from Applications, Spotlight (Cmd+Space), or the Dock. The app will default to `/Users/[username]/Desktop/MacGuardianProject` but you can change the repository path in the app's sidebar.
+After building, install the app to your Applications folder:
+
+```bash
+# Option 1: Command line
+cp -r "MacGuardianSuiteUI/.build/MacGuardian Suite.app" /Applications/
+
+# Option 2: Drag and drop
+# Open Finder, navigate to MacGuardianSuiteUI/.build/
+# Drag "MacGuardian Suite.app" to your Applications folder
+```
+
+#### Launching the App
+
+Once installed, launch "MacGuardian Suite" from:
+- **Applications folder**: Open Finder → Applications → MacGuardian Suite
+- **Spotlight**: Press `Cmd+Space`, type "MacGuardian Suite"
+- **Dock**: Click the app icon (if you've launched it before)
+- **Launchpad**: Find it in your applications grid
+
+#### First-Time Setup
+
+1. **Set Repository Path**: 
+   - The app defaults to `/Users/[username]/Desktop/MacGuardianProject`
+   - If your scripts are elsewhere, click the folder icon in the sidebar to select the correct path
+   - The app will validate the path and show a green checkmark when correct
+
+2. **Configure Email** (Optional):
+   - Go to Settings tab
+   - Enter your email address for reports and alerts
+   - Click "Save Settings"
+
+3. **Enable Safe Mode** (Recommended):
+   - Toggle "Safe Mode" in the sidebar
+   - This adds extra confirmations for potentially destructive operations
+
+#### App Requirements
+
+- **macOS 14.0 or later** (Sonoma+)
+- **Swift 5.9+** (included with Xcode Command Line Tools)
+- **Xcode Command Line Tools** (install with `xcode-select --install`)
 
 > **Note**: The SwiftUI app wraps the existing shell workflows, so the underlying scripts must remain executable and accessible. Set the repository path inside the app if you keep the shell tools in a different location.
+
+#### Troubleshooting
+
+**App won't launch:**
+- Check macOS version: `sw_vers` (must be 14.0+)
+- Verify Xcode Command Line Tools: `xcode-select -p`
+- Rebuild the app: `cd MacGuardianSuiteUI && ./build_app.sh`
+
+**Scripts not found:**
+- Verify repository path in app sidebar
+- Check that scripts are executable: `chmod +x MacGuardianSuite/*.sh`
+- Ensure you're pointing to the correct directory containing `MacGuardianSuite/`
+
+**App icon not showing:**
+- Ensure `MacGlogo.png` exists in `MacGuardianSuiteUI/Resources/images/`
+- Rebuild the app to regenerate the icon
+- Log out and back in (or reboot) to refresh macOS icon cache
 
 ### Required macOS Permissions
 

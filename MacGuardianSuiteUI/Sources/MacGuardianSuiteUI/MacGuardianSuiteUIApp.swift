@@ -9,6 +9,7 @@ struct MacGuardianSuiteUIApp: App {
             ContentView()
                 .environmentObject(workspace)
         }
-        .windowStyle(.hiddenTitleBar)
+        .windowStyle(.automatic)
+        .defaultSize(width: 1200, height: 800)
     }
 }

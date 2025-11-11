@@ -8,6 +8,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/utils.sh" 2>/dev/null || true
+
 THREAT_INTEL_DIR="${THREAT_INTEL_DIR:-$HOME/.macguardian/threat_intel}"
 THREAT_INTEL_DB="${THREAT_INTEL_DB:-$THREAT_INTEL_DIR/iocs.json}"
 

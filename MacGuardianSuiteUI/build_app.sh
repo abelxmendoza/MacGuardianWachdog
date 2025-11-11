@@ -37,6 +37,48 @@ mkdir -p "$RESOURCES_DIR"
 cp "$EXECUTABLE" "$MACOS_DIR/MacGuardianSuiteUI"
 chmod +x "$MACOS_DIR/MacGuardianSuiteUI"
 
+# Create app icon if logo exists (check both MacGlogo.png and MacGuardianLogo.png)
+LOGO_PNG=""
+ICON_NAME="MacGlogo"
+
+if [ -f "$SCRIPT_DIR/Resources/images/MacGlogo.png" ]; then
+    LOGO_PNG="$SCRIPT_DIR/Resources/images/MacGlogo.png"
+    ICON_NAME="MacGlogo"
+elif [ -f "$SCRIPT_DIR/Resources/images/MacGuardianLogo.png" ]; then
+    LOGO_PNG="$SCRIPT_DIR/Resources/images/MacGuardianLogo.png"
+    ICON_NAME="MacGuardianLogo"
+    # Also create a symlink or copy as MacGlogo for consistency
+    if [ ! -f "$SCRIPT_DIR/Resources/images/MacGlogo.png" ]; then
+        cp "$LOGO_PNG" "$SCRIPT_DIR/Resources/images/MacGlogo.png"
+        echo "📋 Using MacGuardianLogo.png as MacGlogo.png"
+    fi
+    LOGO_PNG="$SCRIPT_DIR/Resources/images/MacGlogo.png"
+fi
+
+if [ -n "$LOGO_PNG" ] && [ -f "$LOGO_PNG" ]; then
+    echo "🎨 Creating app icon from $(basename "$LOGO_PNG")..."
+    if [ ! -f "$SCRIPT_DIR/Resources/images/MacGlogo.icns" ]; then
+        # Generate .icns file if it doesn't exist
+        "$SCRIPT_DIR/create_app_icon.sh" 2>/dev/null || echo "⚠️  Could not create .icns (sips/iconutil may not be available)"
+    fi
+    # Copy .icns to app bundle
+    if [ -f "$SCRIPT_DIR/Resources/images/MacGlogo.icns" ]; then
+        cp "$SCRIPT_DIR/Resources/images/MacGlogo.icns" "$RESOURCES_DIR/MacGlogo.icns"
+        echo "✅ App icon copied to bundle"
+    fi
+fi
+
+# Copy logo and image resources if they exist
+if [ -d "$SCRIPT_DIR/Resources" ]; then
+    echo "📸 Copying image resources..."
+    # Copy all files from Resources directory
+    cp -r "$SCRIPT_DIR/Resources"/* "$RESOURCES_DIR/" 2>/dev/null || true
+    # Specifically ensure images folder contents are copied
+    if [ -d "$SCRIPT_DIR/Resources/images" ]; then
+        cp -r "$SCRIPT_DIR/Resources/images"/* "$RESOURCES_DIR/" 2>/dev/null || true
+    fi
+fi
+
 # Create Info.plist
 cat > "$CONTENTS_DIR/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -67,6 +109,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<EOF
     <true/>
     <key>LSUIElement</key>
     <false/>
+    <key>CFBundleIconFile</key>
+    <string>MacGlogo</string>
 </dict>
 </plist>
 EOF

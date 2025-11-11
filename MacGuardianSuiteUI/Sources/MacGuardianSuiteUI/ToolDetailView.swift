@@ -7,45 +7,100 @@ struct ToolDetailView: View {
     @EnvironmentObject private var workspace: WorkspaceState
     let tool: SuiteTool
     let runAction: (SuiteTool) -> Void
+    @State private var updateTimer: Timer?
+    @State private var currentTime = Date()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             header
             Divider()
+                .background(Color.themePurpleDark)
             executionSection
             Spacer()
         }
         .padding(32)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(radius: 12)
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.themePurpleDark, lineWidth: 2)
+        )
+        .shadow(color: .themePurple.opacity(0.3), radius: 12)
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
+                LogoView(size: 48)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tool.name)
                         .font(.largeTitle.weight(.semibold))
+                        .foregroundColor(.themeText)
                     Text(tool.description)
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.themeTextSecondary)
                 }
                 Spacer()
-                VStack(alignment: .trailing) {
+                VStack(alignment: .trailing, spacing: 4) {
                     Text("Script Path")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.themeTextSecondary)
+                    HStack(spacing: 6) {
                     Text(verbatim: workspace.resolve(path: tool.relativePath))
                         .font(.callout.monospaced())
+                            .foregroundColor(.themeText)
                         .textSelection(.enabled)
                         .lineLimit(2)
                         .frame(maxWidth: 320, alignment: .trailing)
+                        if !workspace.checkScriptExists(for: tool) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                                .help("Script file not found. Check the repository path.")
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                                .help("Script file found and ready to run")
+                        }
+                    }
                 }
+            }
+
+            // Safety warning badge
+            if tool.safetyLevel != .safe {
+                HStack(spacing: 8) {
+                    Image(systemName: tool.safetyLevel.icon)
+                        .foregroundColor(tool.safetyLevel == .destructive ? .red : .orange)
+                    Text(tool.safetyLevel.rawValue)
+                        .font(.subheadline.bold())
+                        .foregroundColor(tool.safetyLevel == .destructive ? .red : .orange)
+                    Text("•")
+                        .foregroundColor(.themeTextSecondary)
+                    Text(tool.safetyLevel.description)
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    (tool.safetyLevel == .destructive ? Color.red : Color.orange).opacity(0.15),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
             }
 
             HStack(spacing: 12) {
                 Button {
+                    // Clear any previous execution for this tool
+                    if let currentExecution = workspace.execution, currentExecution.tool.id == tool.id {
+                        workspace.execution = nil
+                    }
+                    // Request safety confirmation if needed
+                    workspace.requestSafetyConfirmation(for: tool) {
+                        // Small delay to ensure UI updates
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     runAction(tool)
+                        }
+                    }
                 } label: {
                     Label("Run Module", systemImage: "play.fill")
                         .font(.headline)
@@ -53,6 +108,9 @@ struct ToolDetailView: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.themePurple)
+                .disabled(!workspace.checkScriptExists(for: tool) || !workspace.validateRepositoryPath().isValid)
+                .help(workspace.checkScriptExists(for: tool) ? "Execute this module" : "Script not found - check repository path")
 
                 Button {
                     revealInFinder()
@@ -60,6 +118,7 @@ struct ToolDetailView: View {
                     Label("Reveal Script", systemImage: "folder")
                 }
                 .buttonStyle(.bordered)
+                .tint(.themePurple)
 
                 Spacer()
 
@@ -69,6 +128,7 @@ struct ToolDetailView: View {
                     Label("Clear Output", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
+                .tint(.themePurple)
                 .disabled(workspace.execution == nil)
             }
         }
@@ -76,25 +136,61 @@ struct ToolDetailView: View {
 
     private var executionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Debug: Show if execution exists but doesn't match
+            if let exec = workspace.execution, exec.tool.id != tool.id {
+                VStack(spacing: 8) {
+                    Text("⚠️ Execution running for different tool")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("Current: \(exec.tool.name)")
+                        .font(.caption2)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+            }
+            
             if let execution = workspace.execution, execution.tool.id == tool.id {
                 statusHeader(for: execution)
-                ScrollView {
-                    Text(execution.log.isEmpty ? "Output will appear here…" : execution.log)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .textSelection(.enabled)
-                        .padding(16)
-                        .background(Color.black.opacity(0.85))
-                        .foregroundColor(.green)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.green.opacity(0.4), lineWidth: 1)
-                        )
-                }
-                .frame(minHeight: 360)
+                outputView(for: execution)
             } else {
-                ContentUnavailableView("No execution yet", systemImage: "waveform", description: Text("Run the module to capture live logs from the underlying shell script."))
+                VStack(spacing: 20) {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 60))
+                        .foregroundStyle(.secondary)
+                    
+                    VStack(spacing: 8) {
+                        Text("No Output Yet")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        Text("Click 'Run Module' to execute this script and see live output here.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    if !workspace.checkScriptExists(for: tool) {
+                        VStack(spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Script Not Found")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                            }
+                            Text("The script file doesn't exist at the expected path. Please verify your repository path is correct.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(40)
             }
         }
     }
@@ -105,10 +201,10 @@ struct ToolDetailView: View {
         switch execution.state {
         case .idle:
             statusText = "Idle"
-            statusColor = .secondary
+            statusColor = .themeTextSecondary
         case .running:
             statusText = "Running…"
-            statusColor = .blue
+            statusColor = .themePurple
         case .finished:
             statusText = "Completed Successfully"
             statusColor = .green
@@ -117,27 +213,66 @@ struct ToolDetailView: View {
             statusColor = .red
         }
 
-        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                HStack(spacing: 8) {
+                    if case .running = execution.state {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .tint(.themePurple)
+                    }
             Label(statusText, systemImage: iconName(for: execution.state))
                 .foregroundColor(statusColor)
                 .font(.headline)
+                }
             Spacer()
-            if let duration = executionDuration(for: execution) {
-                Label(duration, systemImage: "clock")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                // Real-time timer
+                LiveTimer(execution: execution, currentTime: currentTime)
+            }
+            
+            // Show output stats
+            if !execution.log.isEmpty {
+                HStack(spacing: 16) {
+                    Label("\(execution.log.count) chars", systemImage: "text.alignleft")
+                        .font(.caption2)
+                        .foregroundColor(.themeTextSecondary)
+                    Label("\(execution.log.components(separatedBy: .newlines).count) lines", systemImage: "list.number")
+                        .font(.caption2)
+                        .foregroundColor(.themeTextSecondary)
+                }
             }
         }
+        .onAppear {
+            // Start update timer that runs continuously
+            updateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                currentTime = Date()
+            }
+            RunLoop.main.add(updateTimer!, forMode: .common)
+            }
+        .onDisappear {
+            updateTimer?.invalidate()
+            updateTimer = nil
+        }
     }
+    
 
     private func executionDuration(for execution: CommandExecution) -> String? {
         let end = execution.finishedAt ?? Date()
         let interval = end.timeIntervalSince(execution.startedAt)
         guard interval > 0 else { return nil }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.zeroFormattingBehavior = .pad
-        return formatter.string(from: interval)
+        return formatDuration(interval)
+    }
+    
+    private func formatDuration(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        let seconds = Int(interval) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
     }
 
     private func iconName(for state: CommandExecution.State) -> String {
@@ -151,6 +286,108 @@ struct ToolDetailView: View {
         case .failed:
             return "xmark.octagon.fill"
         }
+    }
+
+    private func outputView(for execution: CommandExecution) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                outputContent(for: execution)
+                    .id("output")
+                    .onChange(of: execution.log) { _, newValue in
+                        if !newValue.isEmpty {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    proxy.scrollTo("output", anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+            }
+            .frame(minHeight: 360)
+        }
+    }
+    
+    private func outputContent(for execution: CommandExecution) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if execution.log.isEmpty {
+                Text("Output will appear here…")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.themeTextSecondary)
+            } else {
+                // Enhanced output with better formatting
+                Text(execution.log)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .textSelection(.enabled)
+                    .foregroundColor(.themePurpleLight)
+                    .lineSpacing(2)
+                
+                // Show line count and stats
+                HStack {
+                    Spacer()
+                    Text("\(execution.log.components(separatedBy: .newlines).count) lines • \(execution.log.count) chars")
+                        .font(.caption2)
+                        .foregroundColor(.themeTextSecondary)
+                        .padding(.top, 4)
+                }
+            }
+            
+            // Interactive script warning
+            if case .running = execution.state {
+                let logLines = execution.log.components(separatedBy: .newlines)
+                let recentOutput = logLines.suffix(10).joined(separator: "\n")
+                let isWaiting = OutputFormatter.detectInteractivePrompt(recentOutput)
+                
+                if isWaiting || execution.log.count < 300 {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            if isWaiting {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.yellow)
+                            } else {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .tint(.themePurple)
+                            }
+                            Text(isWaiting ? "Waiting for input" : "Script is running...")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(isWaiting ? .yellow : .themePurple)
+                        .padding(.top, 12)
+                        
+                        if isWaiting {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("⚠️ Interactive Prompt Detected")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.yellow)
+                                Text("This script is waiting for user input. The UI automatically added the '-y' flag for non-interactive execution, but some scripts may still require input.")
+                                    .font(.caption2)
+                                    .foregroundColor(.themeTextSecondary)
+                            }
+                            .padding(8)
+                            .background(Color.yellow.opacity(0.1))
+                            .cornerRadius(6)
+                            .padding(.top, 4)
+                        } else if execution.log.count < 300 {
+                            Text("💡 Output is streaming in real-time. Large scripts may take time to produce output.")
+                                .font(.caption2)
+                                .foregroundColor(.themeTextSecondary)
+                                .padding(.top, 2)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.themeBlack)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 2)
+        )
     }
 
     private func revealInFinder() {

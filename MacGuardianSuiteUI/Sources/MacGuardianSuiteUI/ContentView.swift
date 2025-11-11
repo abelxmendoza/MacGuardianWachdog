@@ -8,40 +8,251 @@ struct ContentView: View {
     @State private var categories: [SuiteCategory] = SuiteCategory.defaultCategories()
     @State private var commandRunner = ShellCommandRunner()
     @FocusState private var repositoryPathFieldFocused: Bool
+    @State private var showPathPicker = false
+    @State private var pathValidationTimer: Timer?
 
     var body: some View {
+        Group {
+            if !workspace.hasSeenWelcome {
+                WelcomeView()
+                    .environmentObject(workspace)
+            } else {
+                if workspace.selectedView == .tools {
         NavigationSplitView {
             sidebar
         } detail: {
-            detailView
+                        mainContentView
+                    }
+                    .frame(minWidth: 1100, minHeight: 720)
+                } else {
+                    mainContentView
+                        .frame(minWidth: 1100, minHeight: 720)
+                }
+            }
         }
-        .frame(minWidth: 1100, minHeight: 720)
+        .onChange(of: workspace.repositoryPath) { _, _ in
+            // Validate path when it changes
+            pathValidationTimer?.invalidate()
+            pathValidationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+                // Path validation happens in the view
+            }
+        }
+    }
+    
+    private var mainContentView: some View {
+        VStack(spacing: 0) {
+            // Main Header with Logo
+            HStack(spacing: 16) {
+                LogoView(size: 48)
+                    .shadow(color: .themePurple.opacity(0.3), radius: 8)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("MacGuardian")
+                        .font(.title.bold())
+                        .foregroundColor(.themePurple)
+                    Text("Watchdog Security Suite")
+                        .font(.subheadline)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+            .background(
+                LinearGradient(
+                    colors: [Color.themeDarkGray, Color.themeBlack],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay(
+                Rectangle()
+                    .frame(height: 2)
+                    .foregroundColor(Color.themePurpleDark),
+                alignment: .bottom
+            )
+            
+            // Tab Navigation
+            HStack(spacing: 0) {
+                ForEach(AppView.allCases, id: \.self) { view in
+                    TabButton(
+                        view: view,
+                        isSelected: workspace.selectedView == view
+                    ) {
+                        workspace.selectedView = view
+                    }
+                }
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color.themeDarkGray)
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color.themePurpleDark),
+                alignment: .bottom
+            )
+            
+            // Content View
+            Group {
+                switch workspace.selectedView {
+                case .dashboard:
+                    DashboardView()
+                        .environmentObject(workspace)
+                case .tools:
+            detailView
+                case .reports:
+                    ReportsView()
+                        .environmentObject(workspace)
+                case .history:
+                    ExecutionHistoryView()
+                        .environmentObject(workspace)
+                case .settings:
+                    SettingsView()
+                        .environmentObject(workspace)
+                }
+        }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(Color.themeBlack)
+    }
+    
+    private struct TabButton: View {
+        let view: AppView
+        let isSelected: Bool
+        let action: () -> Void
+        
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 8) {
+                    Image(systemName: view.icon)
+                        .font(.subheadline)
+                    Text(view.rawValue)
+                        .font(.subheadline)
+                }
+                .foregroundColor(isSelected ? .themePurple : .themeTextSecondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    isSelected ? Color.themePurple.opacity(0.2) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var sidebar: some View {
         List(selection: $workspace.selectedTool) {
-            Section("Repository") {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Logo and Title
+                    HStack(spacing: 12) {
+                        LogoView(size: 40)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("MacGuardian")
+                                .font(.headline.bold())
+                                .foregroundColor(.themePurple)
+                            Text("Watchdog")
+                                .font(.caption)
+                                .foregroundColor(.themeTextSecondary)
+                        }
+                    }
+                    .padding(.bottom, 8)
+                    
                 HStack(spacing: 12) {
                     Image(systemName: "externaldrive.fill")
-                        .foregroundColor(.accentColor)
+                            .foregroundColor(.themePurple)
+                            .font(.title3)
                     TextField("Repository Path", text: $workspace.repositoryPath)
                         .textFieldStyle(.roundedBorder)
                         .focused($repositoryPathFieldFocused)
-                    Button {
-                        openPanel()
-                    } label: {
-                        Image(systemName: "folder")
+                        Button {
+                            showPathPicker = true
+                        } label: {
+                            Image(systemName: "folder")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.themePurple)
+                        .help("Browse for MacGuardian project folder")
                     }
-                    .buttonStyle(.borderless)
-                    .help("Choose the MacGuardian repository folder")
+                    
+                    // Path validation feedback
+                    let validation = workspace.validateRepositoryPath()
+                    if !validation.isValid {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            Text(validation.message)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .lineLimit(2)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(6)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                            Text("Ready to use")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    
+                    // Safe Mode Toggle
+                    HStack(spacing: 8) {
+                        Image(systemName: workspace.safeMode ? "shield.checkered" : "shield.slash")
+                            .foregroundColor(workspace.safeMode ? .green : .orange)
+                        Toggle("Safe Mode", isOn: $workspace.safeMode)
+                            .toggleStyle(.switch)
+                            .help(workspace.safeMode ? "Safe Mode: Requires confirmation for caution and destructive operations" : "Safe Mode OFF: Only destructive operations require confirmation")
+                    }
+                    .padding(.vertical, 4)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                HStack {
+                    Text("Repository")
+                    Spacer()
+                    Button {
+                        workspace.hasSeenWelcome = false
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show welcome screen")
                 }
             }
 
             ForEach(categories) { category in
                 Section {
                     ForEach(category.tools) { tool in
+                        HStack(spacing: 8) {
                         Label(tool.name, systemImage: icon(for: tool))
-                            .tag(tool as SuiteTool?)
+                            Spacer()
+                            if tool.safetyLevel != .safe {
+                                Image(systemName: tool.safetyLevel.icon)
+                                    .foregroundColor(tool.safetyLevel == .destructive ? .red : .orange)
+                                    .font(.caption2)
+                                    .help(tool.safetyLevel.description)
+                            }
+                            if !workspace.checkScriptExists(for: tool) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                    .help("Script not found at expected path")
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .tag(tool)
                     }
                 } header: {
                     VStack(alignment: .leading, spacing: 4) {
@@ -56,6 +267,18 @@ struct ContentView: View {
             }
         }
         .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+        .background(Color.themeBlack)
+        .scrollContentBackground(.hidden)
+        .fileImporter(
+            isPresented: $showPathPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                workspace.repositoryPath = url.path
+            }
+        }
         .navigationTitle("MacGuardian Suite")
         .onChange(of: workspace.selectedTool) { _, newValue in
             guard let tool = newValue else { return }
@@ -71,11 +294,23 @@ struct ContentView: View {
     }
 
     private var detailView: some View {
+        ZStack {
         Group {
             if let tool = workspace.selectedTool {
                 ToolDetailView(tool: tool) { selectedTool in
+                        print("🔵 Run button clicked for: \(selectedTool.name)")
+                        print("🔵 Repository path: \(workspace.repositoryPath)")
+                        print("🔵 Script path: \(workspace.resolve(path: selectedTool.relativePath))")
+                        
+                        // Clear previous execution
+                        workspace.execution = nil
+                        
+                        // Create and start new execution
                     let execution = commandRunner.run(tool: selectedTool, workspace: workspace)
                     workspace.execution = execution
+                        
+                        print("🔵 Execution created: \(execution.id)")
+                        print("🔵 Execution state: \(String(describing: execution.state))")
                 }
                 .environmentObject(workspace)
             } else {
@@ -83,7 +318,22 @@ struct ContentView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+            .background(Color.themeBlack)
+            
+            // Safety confirmation dialog overlay
+            if workspace.showSafetyConfirmation, let tool = workspace.selectedTool {
+                ZStack {
+                    Color.black.opacity(0.7)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            workspace.showSafetyConfirmation = false
+                            workspace.pendingExecution = nil
+                        }
+                    
+                    SafetyConfirmationView(workspace: workspace, tool: tool)
+                }
+            }
+        }
     }
 
     private func icon(for tool: SuiteTool) -> String {
@@ -102,6 +352,21 @@ struct ContentView: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Select"
+        panel.message = "Select your MacGuardian project folder"
+        if panel.runModal() == .OK {
+            workspace.repositoryPath = panel.url?.path ?? workspace.repositoryPath
+        }
+        #endif
+    }
+    
+    private func openPathPicker() {
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Select"
+        panel.message = "Select your MacGuardian project folder"
         if panel.runModal() == .OK {
             workspace.repositoryPath = panel.url?.path ?? workspace.repositoryPath
         }

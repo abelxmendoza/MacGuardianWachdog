@@ -8,6 +8,31 @@ struct SuiteTool: Identifiable, Hashable {
         case python
     }
 
+    enum SafetyLevel: String, CaseIterable {
+        case safe = "Safe"
+        case caution = "Caution"
+        case destructive = "Destructive"
+        
+        var description: String {
+            switch self {
+            case .safe:
+                return "Read-only operations. No files will be modified or deleted."
+            case .caution:
+                return "May modify system settings or clean temporary files. Generally safe."
+            case .destructive:
+                return "⚠️ Can delete files, kill processes, or make permanent changes. Use with caution!"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .safe: return "checkmark.shield"
+            case .caution: return "exclamationmark.triangle"
+            case .destructive: return "exclamationmark.triangle.fill"
+            }
+        }
+    }
+
     let id = UUID()
     let name: String
     let description: String
@@ -15,6 +40,8 @@ struct SuiteTool: Identifiable, Hashable {
     let kind: Kind
     let arguments: [String]
     let requiresSudo: Bool
+    let safetyLevel: SafetyLevel
+    let destructiveOperations: [String] // List of what this script might do
 
     init(
         name: String,
@@ -22,7 +49,9 @@ struct SuiteTool: Identifiable, Hashable {
         relativePath: String,
         kind: Kind = .shell,
         arguments: [String] = [],
-        requiresSudo: Bool = false
+        requiresSudo: Bool = false,
+        safetyLevel: SafetyLevel = .safe,
+        destructiveOperations: [String] = []
     ) {
         self.name = name
         self.description = description
@@ -30,6 +59,8 @@ struct SuiteTool: Identifiable, Hashable {
         self.kind = kind
         self.arguments = arguments
         self.requiresSudo = requiresSudo
+        self.safetyLevel = safetyLevel
+        self.destructiveOperations = destructiveOperations
     }
 
     func commandLine(using workspace: WorkspaceState) -> [String] {
@@ -59,11 +90,32 @@ final class WorkspaceState: ObservableObject {
     @Published var selectedCategory: SuiteCategory?
     @Published var selectedTool: SuiteTool?
     @Published var execution: CommandExecution?
+    @Published var hasSeenWelcome: Bool {
+        didSet {
+            UserDefaults.standard.set(hasSeenWelcome, forKey: "hasSeenWelcome")
+        }
+    }
+    @Published var safeMode: Bool {
+        didSet {
+            UserDefaults.standard.set(safeMode, forKey: "safeMode")
+        }
+    }
+    @Published var showSafetyConfirmation: Bool = false
+    @Published var pendingExecution: (() -> Void)? = nil
+    @Published var executionHistory: [CommandExecution] = []
+    @Published var selectedView: AppView = .tools
+    @Published var reportEmail: String = ""
+    @Published var smtpUsername: String = ""
+    @Published var smtpPassword: String = ""
 
     init(defaultPath: String = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Desktop")
         .appendingPathComponent("MacGuardianProject").path) {
         self.repositoryPath = defaultPath
+        self.hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
+        self.safeMode = UserDefaults.standard.object(forKey: "safeMode") as? Bool ?? true
+        self.reportEmail = UserDefaults.standard.string(forKey: "reportEmail") ?? ""
+        self.smtpUsername = UserDefaults.standard.string(forKey: "smtpUsername") ?? ""
     }
 
     func resolve(path: String) -> String {
@@ -82,10 +134,134 @@ final class WorkspaceState: ObservableObject {
             return "/usr/bin/python3"
         }
     }
+    
+    func validateRepositoryPath() -> (isValid: Bool, message: String) {
+        let expanded = (repositoryPath as NSString).expandingTildeInPath
+        let url = URL(fileURLWithPath: expanded)
+        
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory)
+        
+        if !exists {
+            return (false, "Repository path does not exist. Please select a valid MacGuardian project folder.")
+        }
+        
+        if !isDirectory.boolValue {
+            return (false, "Repository path is not a directory. Please select a folder, not a file.")
+        }
+        
+        // Check if it looks like a MacGuardian project
+        let macSuitePath = url.appendingPathComponent("MacGuardianSuite").path
+        let hasMacSuite = FileManager.default.fileExists(atPath: macSuitePath)
+        
+        if !hasMacSuite {
+            return (false, "This doesn't appear to be a MacGuardian project folder. Make sure it contains the MacGuardianSuite directory.")
+        }
+        
+        return (true, "Repository path is valid")
+    }
+    
+    func checkScriptExists(for tool: SuiteTool) -> Bool {
+        let scriptPath = resolve(path: tool.relativePath)
+        return FileManager.default.fileExists(atPath: scriptPath)
+    }
+    
+    /// Check if a tool requires safety confirmation before running
+    func requiresSafetyConfirmation(for tool: SuiteTool) -> Bool {
+        // In safe mode, require confirmation for caution and destructive operations
+        if safeMode {
+            return tool.safetyLevel == .caution || tool.safetyLevel == .destructive
+        }
+        // Only require confirmation for destructive operations when safe mode is off
+        return tool.safetyLevel == .destructive
+    }
+    
+    /// Request confirmation before running a potentially dangerous tool
+    func requestSafetyConfirmation(for tool: SuiteTool, execute: @escaping () -> Void) {
+        if requiresSafetyConfirmation(for: tool) {
+            pendingExecution = execute
+            showSafetyConfirmation = true
+        } else {
+            execute()
+        }
+    }
+    
+    /// Add execution to history
+    func addToHistory(_ execution: CommandExecution) {
+        executionHistory.insert(execution, at: 0)
+        // Keep only last 100 executions
+        if executionHistory.count > 100 {
+            executionHistory = Array(executionHistory.prefix(100))
+        }
+    }
+    
+    /// Load reports from the reports directory
+    func loadReports() -> [ReportFile] {
+        let reportDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".macguardian")
+            .appendingPathComponent("reports")
+        
+        guard let files = try? FileManager.default.contentsOfDirectory(at: reportDir, includingPropertiesForKeys: [.creationDateKey, .fileSizeKey]) else {
+            return []
+        }
+        
+        return files
+            .filter { $0.pathExtension == "html" || $0.pathExtension == "txt" || $0.pathExtension == "json" }
+            .compactMap { url in
+                guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                      let date = attributes[.creationDate] as? Date,
+                      let size = attributes[.size] as? Int64 else {
+                    return nil
+                }
+                return ReportFile(url: url, date: date, size: size)
+            }
+            .sorted { $0.date > $1.date }
+    }
+}
+
+/// App view navigation
+enum AppView: String, CaseIterable {
+    case dashboard = "Dashboard"
+    case tools = "Tools"
+    case reports = "Reports"
+    case history = "History"
+    case settings = "Settings"
+    
+    var icon: String {
+        switch self {
+        case .dashboard: return "chart.bar.fill"
+        case .tools: return "wrench.and.screwdriver.fill"
+        case .reports: return "doc.text.fill"
+        case .history: return "clock.fill"
+        case .settings: return "gearshape.fill"
+        }
+    }
+}
+
+/// Report file model
+struct ReportFile: Identifiable, Hashable {
+    let id = UUID()
+    let url: URL
+    let date: Date
+    let size: Int64
+    
+    var name: String { url.lastPathComponent }
+    var formattedSize: String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: size)
+    }
 }
 
 /// Represents an execution request and its mutable progress state.
-final class CommandExecution: ObservableObject, Identifiable {
+final class CommandExecution: ObservableObject, Identifiable, Hashable {
+    static func == (lhs: CommandExecution, rhs: CommandExecution) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
     enum State {
         case idle
         case running
@@ -112,31 +288,165 @@ final class CommandExecution: ObservableObject, Identifiable {
 /// Bridges Process output into published updates for SwiftUI.
 final class ShellCommandRunner {
     func run(tool: SuiteTool, workspace: WorkspaceState) -> CommandExecution {
+        print("🟢 ShellCommandRunner.run() called")
+        print("   Tool: \(tool.name)")
+        print("   Path: \(tool.relativePath)")
+        
         let execution = CommandExecution(tool: tool)
         execution.state = .running
         execution.startedAt = Date()
+        
+        // Add initial log message with debug info
+        let resolvedPath = workspace.resolve(path: tool.relativePath)
+        execution.log = "🚀 Starting execution...\n"
+        execution.log.append("📁 Repository: \(workspace.repositoryPath)\n")
+        execution.log.append("📜 Script: \(tool.relativePath)\n")
+        execution.log.append("📍 Resolved Path: \(resolvedPath)\n")
+        execution.log.append("🔍 Checking script existence...\n\n")
+        
+        print("🟢 Execution object created with ID: \(execution.id)")
 
         DispatchQueue.global(qos: .userInitiated).async {
             let process = Process()
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
+
+            // Set working directory to repository path
+            let expandedPath = (workspace.repositoryPath as NSString).expandingTildeInPath
+            let workingDirURL = URL(fileURLWithPath: expandedPath)
+            
+            // Validate working directory exists
+            let fileManager = FileManager.default
+            var isDirectory: ObjCBool = false
+            if !fileManager.fileExists(atPath: expandedPath, isDirectory: &isDirectory) || !isDirectory.boolValue {
+                DispatchQueue.main.async {
+                    execution.state = .failed("Invalid repository path")
+                    execution.finishedAt = Date()
+                    execution.log.append("❌ Error: Repository path does not exist or is not a directory:\n\(expandedPath)\n")
+                }
+                return
+            }
+            
+            process.currentDirectoryURL = workingDirURL
+            
+            // Set environment variables
+            var env = ProcessInfo.processInfo.environment
+            env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+            env["SHELL"] = "/bin/zsh"
+            process.environment = env
+            
+            DispatchQueue.main.async {
+                execution.log.append("✅ Working directory set: \(expandedPath)\n")
+            }
 
             switch tool.kind {
             case .shell:
                 process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-                let command = self.shellCommand(for: tool, workspace: workspace)
+                let resolvedPath = workspace.resolve(path: tool.relativePath)
+                
+                DispatchQueue.main.async {
+                    execution.log.append("🔍 Checking script: \(resolvedPath)\n")
+                }
+                
+                // Make sure script is executable
+                if !fileManager.fileExists(atPath: resolvedPath) {
+                    DispatchQueue.main.async {
+                        execution.state = .failed("Script not found")
+                        execution.finishedAt = Date()
+                        execution.log.append("❌ Error: Script not found at path:\n\(resolvedPath)\n\n")
+                        execution.log.append("💡 Debug Info:\n")
+                        execution.log.append("   - Repository: \(workspace.repositoryPath)\n")
+                        execution.log.append("   - Relative Path: \(tool.relativePath)\n")
+                        execution.log.append("   - Resolved: \(resolvedPath)\n")
+                    }
+                    return
+                }
+                
+                DispatchQueue.main.async {
+                    execution.log.append("✅ Script found\n")
+                }
+                
+                // Check and set permissions
+                let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath)
+                if let perms = attributes?[.posixPermissions] as? Int {
+                    if (perms & 0o111) == 0 {
+                        // Make executable
+                        do {
+                            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: resolvedPath)
+                            DispatchQueue.main.async {
+                                execution.log.append("🔧 Made script executable\n")
+                            }
+                        } catch {
+                            DispatchQueue.main.async {
+                                execution.log.append("⚠️ Warning: Could not set executable permissions: \(error.localizedDescription)\n")
+                            }
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            execution.log.append("✅ Script is executable\n")
+                        }
+                    }
+                }
+                
+                // Build command: cd to directory and execute script
+                let scriptDir = (resolvedPath as NSString).deletingLastPathComponent
+                let scriptName = (resolvedPath as NSString).lastPathComponent
+                
+                // Properly escape paths for shell
+                func escapeShell(_ path: String) -> String {
+                    return path.replacingOccurrences(of: "'", with: "'\\''")
+                }
+                
+                let escapedDir = escapeShell(scriptDir)
+                let escapedName = escapeShell(scriptName)
+                
+                // Build command with arguments - add non-interactive flag for scripts that support it
+                var scriptArgs = tool.arguments
+                
+                // Auto-add non-interactive flag for common scripts if no args provided
+                if scriptArgs.isEmpty {
+                    let scriptLower = scriptName.lowercased()
+                    if scriptLower.contains("guardian") || scriptLower.contains("watchdog") || 
+                       scriptLower.contains("blueteam") || scriptLower.contains("remediation") ||
+                       scriptLower.contains("audit") {
+                        scriptArgs = ["-y", "--non-interactive"]
+                        DispatchQueue.main.async {
+                            execution.log.append("💡 Auto-added non-interactive flag (-y) for automated execution\n")
+                        }
+                    }
+                }
+                
+                // Build command with arguments
+                var command = "cd '\(escapedDir)' && ./'\(escapedName)'"
+                if !scriptArgs.isEmpty {
+                    let escapedArgs = scriptArgs.map { escapeShell($0) }.joined(separator: " ")
+                    command += " \(escapedArgs)"
+                }
+                command += " 2>&1"
+                
+                DispatchQueue.main.async {
+                    execution.log.append("📝 Command: \(command)\n")
+                    execution.log.append("🚀 Launching process...\n\n")
+                }
+                
                 process.arguments = ["-lc", command]
+                
             case .python:
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-                process.arguments = [workspace.resolve(path: tool.relativePath)] + tool.arguments
+                let resolvedPath = workspace.resolve(path: tool.relativePath)
+                process.arguments = [resolvedPath] + tool.arguments
             }
 
-            let handle = pipe.fileHandleForReading
-            var observer: NSObjectProtocol?
+            let outputHandle = outputPipe.fileHandleForReading
+            let errorHandle = errorPipe.fileHandleForReading
+            var outputObserver: NSObjectProtocol?
+            var errorObserver: NSObjectProtocol?
 
-            observer = NotificationCenter.default.addObserver(forName: .NSFileHandleDataAvailable, object: handle, queue: nil) { [weak handle] _ in
-                guard let handle = handle else { return }
+            // Read stdout
+            outputObserver = NotificationCenter.default.addObserver(forName: .NSFileHandleDataAvailable, object: outputHandle, queue: nil) { [weak outputHandle] _ in
+                guard let handle = outputHandle else { return }
                 let data = handle.availableData
                 if data.count > 0 {
                     if let chunk = String(data: data, encoding: .utf8) {
@@ -148,43 +458,134 @@ final class ShellCommandRunner {
                 }
             }
 
+            // Read stderr
+            errorObserver = NotificationCenter.default.addObserver(forName: .NSFileHandleDataAvailable, object: errorHandle, queue: nil) { [weak errorHandle] _ in
+                guard let handle = errorHandle else { return }
+                let data = handle.availableData
+                if data.count > 0 {
+                    if let chunk = String(data: data, encoding: .utf8) {
+                        DispatchQueue.main.async {
+                            execution.log.append(contentsOf: chunk)
+                        }
+                    }
             handle.waitForDataInBackgroundAndNotify()
+                }
+            }
+
+            outputHandle.waitForDataInBackgroundAndNotify()
+            errorHandle.waitForDataInBackgroundAndNotify()
 
             do {
                 try process.run()
+                DispatchQueue.main.async {
+                    execution.log.append("✅ Process started (PID: \(process.processIdentifier))\n")
+                    execution.log.append("📡 Waiting for output...\n\n")
+                }
             } catch {
-                if let observer = observer {
-                    NotificationCenter.default.removeObserver(observer)
+                if let obs = outputObserver {
+                    NotificationCenter.default.removeObserver(obs)
+                }
+                if let obs = errorObserver {
+                    NotificationCenter.default.removeObserver(obs)
                 }
                 DispatchQueue.main.async {
                     execution.state = .failed(error.localizedDescription)
                     execution.finishedAt = Date()
-                    execution.log.append("\nFailed to start: \(error.localizedDescription)\n")
+                    execution.log.append("\n❌ Failed to start process\n")
+                    execution.log.append("   Error: \(error.localizedDescription)\n")
+                    execution.log.append("\n💡 Debug Info:\n")
+                    execution.log.append("   - Executable: \(process.executableURL?.path ?? "nil")\n")
+                    execution.log.append("   - Arguments: \(process.arguments?.joined(separator: " ") ?? "nil")\n")
+                    execution.log.append("   - Working Dir: \(process.currentDirectoryURL?.path ?? "nil")\n")
                 }
                 return
             }
 
             process.waitUntilExit()
             
-            // Read any remaining data
-            let remainingData = handle.readDataToEndOfFile()
-            if remainingData.count > 0, let remainingChunk = String(data: remainingData, encoding: .utf8) {
+            // Read any remaining data from both pipes
+            let remainingOutput = outputHandle.readDataToEndOfFile()
+            let remainingError = errorHandle.readDataToEndOfFile()
+            
+            if remainingOutput.count > 0, let outputChunk = String(data: remainingOutput, encoding: .utf8) {
                 DispatchQueue.main.async {
-                    execution.log.append(contentsOf: remainingChunk)
+                    execution.log.append(contentsOf: outputChunk)
                 }
             }
             
-            if let observer = observer {
-                NotificationCenter.default.removeObserver(observer)
+            if remainingError.count > 0, let errorChunk = String(data: remainingError, encoding: .utf8) {
+                DispatchQueue.main.async {
+                    execution.log.append("\n[STDERR]\n")
+                    execution.log.append(contentsOf: errorChunk)
+                }
+            }
+            
+            if let obs = outputObserver {
+                NotificationCenter.default.removeObserver(obs)
+            }
+            if let obs = errorObserver {
+                NotificationCenter.default.removeObserver(obs)
             }
             
             let status = process.terminationStatus
             DispatchQueue.main.async {
                 execution.finishedAt = Date()
+                execution.log.append("\n\n" + String(repeating: "─", count: 60) + "\n")
+                execution.log.append("📊 Process finished\n")
+                execution.log.append("   Exit Code: \(status)\n")
+                execution.log.append("   Duration: \(String(format: "%.2f", Date().timeIntervalSince(execution.startedAt)))s\n")
+                
+                // Save to history
+                workspace.addToHistory(execution)
+                
                 if status == 0 {
                     execution.state = .finished(status)
+                    execution.log.append("✅ Execution completed successfully\n")
                 } else {
-                    execution.state = .failed("Exit code \(status)")
+                    // Detect common error patterns and provide helpful guidance
+                    let logText = execution.log.lowercased()
+                    var errorMessage = "Exit code \(status)"
+                    var helpfulTip = ""
+                    
+                    if logText.contains("sudo") && (logText.contains("password") || logText.contains("terminal is required")) {
+                        errorMessage = "Sudo access required"
+                        let repoPath = workspace.repositoryPath
+                        let scriptPath = tool.relativePath
+                        helpfulTip = """
+                        
+                        🔐 Sudo Access Required
+                        
+                        Some operations in this script require administrator privileges (sudo).
+                        The app cannot provide interactive password input for security reasons.
+                        
+                        Options:
+                        1. Run the script from Terminal with sudo access:
+                           cd '\(repoPath)'
+                           sudo ./\(scriptPath)
+                        
+                        2. Some operations may have been skipped. Check the output above
+                           to see which steps completed successfully.
+                        
+                        3. For automated execution, you may need to configure passwordless
+                           sudo for specific commands (see sudoers configuration).
+                        
+                        """
+                    } else if logText.contains("permission denied") || logText.contains("cannot execute") {
+                        errorMessage = "Permission denied"
+                        helpfulTip = "\n💡 Tip: The script may need execute permissions. Try: chmod +x '\(tool.relativePath)'\n"
+                    } else if logText.contains("not found") || logText.contains("no such file") {
+                        errorMessage = "Script not found"
+                        helpfulTip = "\n💡 Tip: Verify the script path is correct: \(tool.relativePath)\n"
+                    } else if logText.contains("interactive") || logText.contains("input required") {
+                        errorMessage = "Interactive input required"
+                        helpfulTip = "\n💡 Tip: This script requires interactive input. Try running it from Terminal, or check if it supports non-interactive flags.\n"
+                    } else {
+                        helpfulTip = "\n💡 Tip: Check the output above for specific error messages. The script may require additional setup or permissions.\n"
+                    }
+                    
+                    execution.state = .failed(errorMessage)
+                    execution.log.append("❌ Execution failed: \(errorMessage)\n")
+                    execution.log.append(helpfulTip)
                 }
             }
         }
@@ -192,19 +593,12 @@ final class ShellCommandRunner {
         return execution
     }
 
+    // This method is no longer used but kept for compatibility
     private func shellCommand(for tool: SuiteTool, workspace: WorkspaceState) -> String {
         let resolved = workspace.resolve(path: tool.relativePath)
-        let components = [resolved] + tool.arguments
-        let quoted = components.map { component -> String in
-            if component.isEmpty { return "''" }
-            let escaped = component.replacingOccurrences(of: "'", with: "'\\''")
-            return "'\(escaped)'"
-        }
-        let commandBody = quoted.joined(separator: " ")
-        if tool.requiresSudo {
-            return "sudo \(commandBody)"
-        }
-        return commandBody
+        let scriptDir = (resolved as NSString).deletingLastPathComponent
+        let scriptName = (resolved as NSString).lastPathComponent
+        return "cd '\(scriptDir)' && ./'\(scriptName)'"
     }
 }
 
@@ -224,32 +618,46 @@ extension SuiteCategory {
                     SuiteTool(
                         name: "Run mac_guardian.sh",
                         description: "Execute the cleanup and security hardening workflow.",
-                        relativePath: "MacGuardianSuite/mac_guardian.sh"
+                        relativePath: "MacGuardianSuite/mac_guardian.sh",
+                        safetyLevel: .caution,
+                        destructiveOperations: ["Cleans temporary files", "Updates system packages", "May require sudo for some operations"]
                     ),
                     SuiteTool(
                         name: "Run mac_watchdog.sh",
                         description: "Start file integrity monitoring and Tripwire-style checks.",
-                        relativePath: "MacGuardianSuite/mac_watchdog.sh"
+                        relativePath: "MacGuardianSuite/mac_watchdog.sh",
+                        safetyLevel: .safe
                     ),
                     SuiteTool(
                         name: "Run mac_blueteam.sh",
                         description: "Advanced detection of suspicious processes, network connections, and anomalies.",
-                        relativePath: "MacGuardianSuite/mac_blueteam.sh"
+                        relativePath: "MacGuardianSuite/mac_blueteam.sh",
+                        safetyLevel: .safe
                     ),
                     SuiteTool(
                         name: "Run mac_ai.sh",
                         description: "Machine learning-driven security analytics and behavioral insights.",
-                        relativePath: "MacGuardianSuite/mac_ai.sh"
+                        relativePath: "MacGuardianSuite/mac_ai.sh",
+                        safetyLevel: .safe
                     ),
                     SuiteTool(
                         name: "Run mac_security_audit.sh",
                         description: "Comprehensive security posture assessment for macOS.",
-                        relativePath: "MacGuardianSuite/mac_security_audit.sh"
+                        relativePath: "MacGuardianSuite/mac_security_audit.sh",
+                        safetyLevel: .safe
                     ),
                     SuiteTool(
                         name: "Run mac_remediation.sh",
                         description: "Automated remediation workflows with dry-run safety checks.",
-                        relativePath: "MacGuardianSuite/mac_remediation.sh"
+                        relativePath: "MacGuardianSuite/mac_remediation.sh",
+                        safetyLevel: .destructive,
+                        destructiveOperations: [
+                            "Can delete suspicious files",
+                            "Can kill processes",
+                            "Can remove launch items",
+                            "Can modify system permissions",
+                            "Can quarantine files"
+                        ]
                     )
                 ]
             ),
@@ -270,13 +678,13 @@ extension SuiteCategory {
                     SuiteTool(
                         name: "Advanced Alerting",
                         description: "Manage custom alert rules and severity-based notifications.",
-                        relativePath: "MacGuardianSuite/advanced_alerting.sh"
+                        relativePath: "MacGuardianSuite/advanced_alerting.sh",
+                        arguments: ["process"]
                     ),
                     SuiteTool(
                         name: "STIX Exporter",
                         description: "Export collected indicators of compromise to STIX format.",
-                        relativePath: "MacGuardianSuite/stix_exporter.py",
-                        kind: .python
+                        relativePath: "MacGuardianSuite/stix_exporter_wrapper.sh"
                     )
                 ]
             ),

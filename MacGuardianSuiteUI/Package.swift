@@ -14,7 +14,7 @@ let package = Package(
         .executableTarget(
             name: "MacGuardianSuiteUI",
             dependencies: [],
-            path: "Sources"
+            path: "Sources/MacGuardianSuiteUI"
         )
     ]
 )
