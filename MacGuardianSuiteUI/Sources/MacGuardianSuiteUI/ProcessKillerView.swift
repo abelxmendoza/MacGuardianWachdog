@@ -59,7 +59,7 @@ struct ProcessKillerView: View {
                 Spacer()
                 
                 Button {
-                    refreshApps()
+                    refreshApps(showLoading: true)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.clockwise")
@@ -202,7 +202,7 @@ struct ProcessKillerView: View {
         }
         .background(Color.themeBlack)
         .onAppear {
-            refreshApps()
+            refreshApps(showLoading: true) // Show loading on initial load
             startAutoRefresh()
         }
         .onDisappear {
@@ -222,15 +222,17 @@ struct ProcessKillerView: View {
         .alert("Kill Result", isPresented: .constant(killResult != nil), presenting: killResult) { result in
             Button("OK") {
                 killResult = nil
-                refreshApps()
+                refreshApps(showLoading: false)
             }
         } message: { result in
             Text(result.message)
         }
     }
     
-    private func refreshApps() {
-        isLoading = true
+    private func refreshApps(showLoading: Bool = false) {
+        if showLoading {
+            isLoading = true
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             let apps = getRunningApplications()
             DispatchQueue.main.async {
@@ -245,8 +247,8 @@ struct ProcessKillerView: View {
     }
     
     private func startAutoRefresh() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            refreshApps()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            refreshApps(showLoading: false) // Don't show loading indicator during auto-refresh
         }
     }
     
