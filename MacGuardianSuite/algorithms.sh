@@ -468,7 +468,8 @@ lru_cache_set() {
         if [ ${#LRU_ORDER[@]} -gt $LRU_MAX_SIZE ]; then
             local oldest="${LRU_ORDER[0]}"
             unset LRU_CACHE["$oldest"]
-        LRU_ORDER=("${LRU_ORDER[@]:1}")
+            LRU_ORDER=("${LRU_ORDER[@]:1}")
+        fi
     fi
 }
 

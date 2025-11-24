@@ -134,6 +134,7 @@ final class WorkspaceState: ObservableObject {
     @Published var selectedView: AppView = .tools
     @Published var showProcessKiller: Bool = false
     @Published var showCacheCleaner: Bool = false
+    @Published var showCursorCacheCleaner: Bool = false
     @Published var reportEmail: String = ""
     @Published var smtpUsername: String = ""
     @Published var smtpPassword: String = "" {
@@ -851,6 +852,15 @@ extension SuiteCategory {
                         safetyLevel: .caution,
                         destructiveOperations: ["Cleans browser cache files", "May delete cookies and browsing history if selected", "Cleans system cache files"],
                         executionMode: .ui
+                    ),
+                    SuiteTool(
+                        name: "Cursor Cache Cleaner",
+                        description: "Clear Cursor editor cache for your projects. Fixes cache issues and frees up disk space. Scans for projects automatically.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .safe,
+                        destructiveOperations: ["Cleans Cursor project cache files", "Cleans Cursor global cache"],
+                        executionMode: .ui
                     )
                 ]
             ),
@@ -918,6 +928,12 @@ extension SuiteCategory {
                         description: "Verify integrity and security of MacGuardian Suite files. Checks file checksums, permissions, and detects tampering.",
                         relativePath: "MacGuardianSuite/app_security.sh",
                         arguments: ["--all"],
+                        safetyLevel: .safe
+                    ),
+                    SuiteTool(
+                        name: "Fix App Icons",
+                        description: "Clear macOS icon cache and fix app icons. Use this if app icons aren't displaying correctly in Finder or Dock.",
+                        relativePath: "MacGuardianSuite/fix_app_icons.sh",
                         safetyLevel: .safe
                     )
                 ]

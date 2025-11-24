@@ -30,15 +30,20 @@ struct SettingsView: View {
                 .padding(.horizontal)
                 
                 // Email Configuration
-                SettingsSection(title: "Email Configuration", icon: "envelope.fill") {
+                SettingsSection(title: "Email Configuration (Optional)", icon: "envelope.fill") {
                     VStack(alignment: .leading, spacing: 16) {
+                        Text("Configure email settings only if you want to receive security reports via email. This is completely optional - the app works fine without email.")
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                            .padding(.bottom, 8)
+                        
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Report Email")
                                 .font(.subheadline.bold())
                                 .foregroundColor(.themeText)
-                            TextField("abelxmendoza@gmail.com", text: $reportEmail)
+                            TextField("your-email@example.com", text: $reportEmail)
                                 .textFieldStyle(.roundedBorder)
-                                .help("Email address to receive security reports")
+                                .help("Email address where you want to receive security reports")
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
@@ -47,7 +52,7 @@ struct SettingsView: View {
                                 .foregroundColor(.themeText)
                             TextField("your-email@gmail.com", text: $smtpUsername)
                                 .textFieldStyle(.roundedBorder)
-                                .help("SMTP username for sending emails")
+                                .help("Your email address (for Gmail, use your full email address)")
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
@@ -70,7 +75,12 @@ struct SettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .help("SMTP password (stored securely)")
+                            .help("Your email account password (stored securely in macOS Keychain, not plaintext)")
+                            
+                            Text("💡 For Gmail: Use an App Password, not your regular password")
+                                .font(.caption)
+                                .foregroundColor(.themeTextSecondary)
+                                .padding(.top, 4)
                         }
                         
                         Button("Save Email Settings") {
@@ -182,18 +192,57 @@ struct SettingsView: View {
     private func loadSettings() {
         reportEmail = workspace.reportEmail.isEmpty ? UserDefaults.standard.string(forKey: "reportEmail") ?? "" : workspace.reportEmail
         smtpUsername = workspace.smtpUsername.isEmpty ? UserDefaults.standard.string(forKey: "smtpUsername") ?? "" : workspace.smtpUsername
+        
+        // Load password from Keychain (secure storage)
+        if let password = SecureStorage.shared.getPassword(forKey: "smtpPassword") {
+            smtpPassword = password
+        }
     }
     
     private func saveEmailSettings() {
+        // If all fields are empty, just clear settings (email is optional)
+        if reportEmail.isEmpty && smtpUsername.isEmpty && smtpPassword.isEmpty {
+            workspace.reportEmail = ""
+            workspace.smtpUsername = ""
+            UserDefaults.standard.removeObject(forKey: "reportEmail")
+            UserDefaults.standard.removeObject(forKey: "smtpUsername")
+            SecureStorage.shared.deletePassword(forKey: "smtpPassword")
+            showSaveConfirmation = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                showSaveConfirmation = false
+            }
+            return
+        }
+        
+        // Validate inputs only if email is being configured
+        let validation = InputValidator.shared.validateSMTPSettings(
+            username: smtpUsername,
+            password: smtpPassword,
+            email: reportEmail
+        )
+        
+        if !validation.isValid {
+            // Show error (you might want to add an error state for this)
+            return
+        }
+        
         workspace.reportEmail = reportEmail
         workspace.smtpUsername = smtpUsername
         
+        // Store non-sensitive data in UserDefaults
         UserDefaults.standard.set(reportEmail, forKey: "reportEmail")
         UserDefaults.standard.set(smtpUsername, forKey: "smtpUsername")
         
-        // Note: Password should be stored in Keychain in production
+        // Store password securely in Keychain (encrypted, not plaintext)
         if !smtpPassword.isEmpty {
-            UserDefaults.standard.set(smtpPassword, forKey: "smtpPassword")
+            let success = SecureStorage.shared.storePassword(smtpPassword, forKey: "smtpPassword")
+            if !success {
+                // Could show error here if needed
+                print("⚠️ Warning: Failed to store password in Keychain")
+            }
+        } else {
+            // Clear password if field is empty
+            SecureStorage.shared.deletePassword(forKey: "smtpPassword")
         }
         
         showSaveConfirmation = true

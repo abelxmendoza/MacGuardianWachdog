@@ -129,6 +129,11 @@ struct ContentView: View {
                 .frame(minWidth: 900, minHeight: 700)
                 .environmentObject(workspace)
         }
+        .sheet(isPresented: $workspace.showCursorCacheCleaner) {
+            CursorCacheCleanerView()
+                .frame(minWidth: 900, minHeight: 700)
+                .environmentObject(workspace)
+        }
     }
     
     private struct TabButton: View {

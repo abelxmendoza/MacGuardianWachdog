@@ -469,6 +469,7 @@ parse_args() {
     SKIP_SCAN=false
     GENERATE_REPORT=false
     PARALLEL_JOBS=""
+    RESUME=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -504,6 +505,10 @@ parse_args() {
             --parallel)
                 PARALLEL_JOBS="$2"
                 shift 2
+                ;;
+            --resume)
+                RESUME=true
+                shift
                 ;;
             *)
                 echo "Unknown option: $1" >&2
@@ -666,16 +671,29 @@ wait_all_jobs() {
             local pid_start=$(date +%s)
             local pid_waited=0
             
-            # Wait with timeout (check every 0.2 seconds for faster response)
+            # Wait with timeout (check every 1 second, show progress every 10 seconds)
+            local last_progress=0
             while kill -0 "$pid" 2>/dev/null && [ $pid_waited -lt $max_wait ]; do
-                sleep 0.2
+                sleep 1
                 pid_waited=$((pid_waited + 1))
+                
+                # Show progress every 10 seconds, with more detail every 60 seconds
+                if [ $((pid_waited % 10)) -eq 0 ] && [ "${QUIET:-false}" != true ]; then
+                    local minutes=$((pid_waited / 60))
+                    local seconds=$((pid_waited % 60))
+                    local max_minutes=$((max_wait / 60))
+                    if [ $minutes -gt 0 ]; then
+                        echo "  ⏳ $name still running... (${minutes}m ${seconds}s / ${max_minutes}m)"
+                    else
+                        echo "  ⏳ $name still running... (${pid_waited}s / ${max_wait}s)"
+                    fi
+                fi
                 
                 # Check total elapsed time
                 local current_time=$(date +%s)
                 local elapsed=$((current_time - start_time))
                 if [ $elapsed -ge $force_kill_after ]; then
-                    if [ "$QUIET" != true ]; then
+                    if [ "${QUIET:-false}" != true ]; then
                         warning "Force killing stuck job: $name (PID: $pid) after ${elapsed}s"
                     fi
                     kill -9 "$pid" 2>/dev/null || true
@@ -685,7 +703,7 @@ wait_all_jobs() {
             
             # Final check and kill if still running
             if kill -0 "$pid" 2>/dev/null; then
-                if [ "$QUIET" != true ]; then
+                if [ "${QUIET:-false}" != true ]; then
                     warning "Job $name (PID: $pid) exceeded ${max_wait}s timeout, force killing..."
                 fi
                 kill -9 "$pid" 2>/dev/null || true
@@ -708,7 +726,7 @@ wait_all_jobs() {
     JOB_NAMES=()
     ACTIVE_JOBS=0
     
-    if [ "$QUIET" != true ] && [ $total_jobs -gt 0 ]; then
+    if [ "${QUIET:-false}" != true ] && [ $total_jobs -gt 0 ]; then
         echo ""
         success "All $total_jobs parallel job(s) completed"
     fi
@@ -750,7 +768,7 @@ process_files_parallel() {
     local total_files=$(wc -l < "$file_list" | tr -d ' ')
     local processed=0
     
-    if [ "$QUIET" != true ]; then
+    if [ "${QUIET:-false}" != true ]; then
         echo "Processing $total_files files with $max_jobs parallel jobs..."
     fi
     
@@ -771,7 +789,7 @@ process_files_parallel() {
         job_count=$((job_count + 1))
         
         # Update progress periodically
-        if [ $((job_count % 10)) -eq 0 ] && [ "$QUIET" != true ]; then
+        if [ $((job_count % 10)) -eq 0 ] && [ "${QUIET:-false}" != true ]; then
             printf "\r${cyan}Queued: $job_count/$total_files files${normal}"
         fi
     done < "$file_list"
@@ -782,7 +800,7 @@ process_files_parallel() {
     # Cleanup
     rm -rf "$temp_dir"
     
-    if [ "$QUIET" != true ]; then
+    if [ "${QUIET:-false}" != true ]; then
         echo ""
         success "Processed $total_files files in parallel"
     fi

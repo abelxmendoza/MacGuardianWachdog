@@ -36,6 +36,105 @@ source "$SCRIPT_DIR/config.sh"
 # Parse command line arguments
 parse_args "$@"
 
+# Checkpoint system for resume functionality
+CHECKPOINT_DIR="${CONFIG_DIR}/checkpoints"
+CHECKPOINT_FILE="${CHECKPOINT_DIR}/mac_guardian_checkpoint.txt"
+mkdir -p "$CHECKPOINT_DIR"
+
+# Define steps in order
+STEPS=(
+    "homebrew_update"
+    "security_checks"
+    "clamav_scan"
+    "rkhunter_scan"
+    "firewall_check"
+    "filevault_check"
+    "sip_check"
+    "gatekeeper_check"
+    "time_machine_check"
+)
+
+# Check if resuming from checkpoint
+RESUME_FROM=""
+if [ -f "$CHECKPOINT_FILE" ]; then
+    # Auto-resume if --resume flag is set OR if running non-interactively (UI mode)
+    if [ "${RESUME:-false}" = "true" ] || [ "$INTERACTIVE" != "true" ]; then
+        RESUME_FROM=$(cat "$CHECKPOINT_FILE" 2>/dev/null || echo "")
+        if [ -n "$RESUME_FROM" ]; then
+            if [ "$QUIET" != true ]; then
+                echo "${bold}🔄 Resuming from checkpoint: $RESUME_FROM${normal}"
+                echo ""
+            fi
+        fi
+    fi
+fi
+
+# Save checkpoint
+save_checkpoint() {
+    local step="$1"
+    echo "$step" > "$CHECKPOINT_FILE"
+    log_message "INFO" "Checkpoint saved: $step"
+}
+
+# Check if step should be skipped (already completed)
+should_skip_step() {
+    local step="$1"
+    if [ -n "$RESUME_FROM" ]; then
+        local found=false
+        for s in "${STEPS[@]}"; do
+            if [ "$s" = "$RESUME_FROM" ]; then
+                found=true
+            fi
+            if [ "$found" = true ] && [ "$s" = "$step" ]; then
+                return 1  # Don't skip - this is the step to resume from
+            fi
+        done
+        # If we haven't reached resume point yet, skip
+        for s in "${STEPS[@]}"; do
+            if [ "$s" = "$RESUME_FROM" ]; then
+                return 0  # Skip - already completed
+            fi
+            if [ "$s" = "$step" ]; then
+                return 1  # Don't skip - this is before resume point
+            fi
+        done
+    fi
+    return 1  # Don't skip by default
+}
+
+# Enhanced sudo check that skips gracefully in non-interactive mode
+check_sudo_graceful() {
+    # First try non-interactive sudo (works if passwordless sudo is configured)
+    if sudo -n true 2>/dev/null; then
+        return 0
+    fi
+    
+    # If non-interactive sudo doesn't work, check if we're in interactive mode
+    if [ "$INTERACTIVE" = true ]; then
+        warning "This operation requires administrator privileges."
+        sudo -v || error_exit "Sudo access required but not available"
+        return 0
+    else
+        # In non-interactive mode, try one more time with a helpful message
+        warning "This operation requires administrator privileges."
+        info "Attempting with passwordless sudo (if configured)..."
+        if sudo -n true 2>/dev/null; then
+            return 0
+        else
+            warning "Skipping this step (sudo access required)."
+            info "💡 To enable rootkit scan:"
+            info "   1. Run from Terminal: sudo ./MacGuardianSuite/mac_guardian.sh"
+            info "   2. Or configure passwordless sudo for rkhunter"
+            return 1
+        fi
+    fi
+}
+
+# Enable continue on error for non-interactive mode
+if [ "$INTERACTIVE" != true ]; then
+    export CONTINUE_ON_ERROR=true
+fi
+
 # Enable fast scan by default (unless explicitly disabled)
 if [ "${FAST_SCAN_DEFAULT:-true}" = true ] && [ "${FAST_SCAN:-}" != false ]; then
     FAST_SCAN=true
@@ -69,7 +168,7 @@ if ! command -v brew &> /dev/null; then
 fi
 
 # Homebrew updates
-if [ "$SKIP_UPDATES" != true ]; then
+if [ "$SKIP_UPDATES" != true ] && ! should_skip_step "homebrew_update"; then
     if [ "$QUIET" != true ]; then
         show_step 1 9 "Updating Homebrew (Mac's app manager)"
     fi
@@ -153,9 +252,15 @@ echo "${bold}🗑️  Cleaning out old versions...${normal}"
         # Even if there are "Skipping" messages, cleanup still succeeded
         success "Cleanup complete."
     fi
+    
+    save_checkpoint "homebrew_update"
 else
     if [ "$QUIET" != true ]; then
-        info "Skipping Homebrew updates (--skip-updates flag)"
+        if should_skip_step "homebrew_update"; then
+            info "Skipping Homebrew updates (already completed in previous run)"
+        else
+            info "Skipping Homebrew updates (--skip-updates flag)"
+        fi
     fi
 fi
 
@@ -166,24 +271,24 @@ echo ""
     fi
     
     if [ "$INTERACTIVE" = true ]; then
-read -p "${bold}📦 Do you want to check for macOS system updates? (y/n): ${normal}" systemUpdate
+        read -p "${bold}📦 Do you want to check for macOS system updates? (y/n): ${normal}" systemUpdate
     else
         systemUpdate="n"  # Default to no in non-interactive mode
     fi
     
-if [[ "$systemUpdate" =~ ^[Yy]$ ]]; then
+    if [[ "$systemUpdate" =~ ^[Yy]$ ]]; then
         if [ "$QUIET" != true ]; then
-    echo "${bold}🔍 Looking for system updates...${normal}"
+            echo "${bold}🔍 Looking for system updates...${normal}"
         fi
 
         if softwareupdate -l 2>&1; then
             if [ "$INTERACTIVE" = true ]; then
-    read -p "${bold}⚙️  Install all available updates now? (this might restart your Mac) (y/n): ${normal}" installNow
+                read -p "${bold}⚙️  Install all available updates now? (this might restart your Mac) (y/n): ${normal}" installNow
             else
                 installNow="n"  # Default to no in non-interactive mode
             fi
             
-    if [[ "$installNow" =~ ^[Yy]$ ]]; then
+            if [[ "$installNow" =~ ^[Yy]$ ]]; then
                 check_sudo
                 if sudo softwareupdate -i -a 2>&1; then
                     success "System updates installed successfully."
@@ -197,26 +302,27 @@ if [[ "$systemUpdate" =~ ^[Yy]$ ]]; then
                 if [ "$QUIET" != true ]; then
                     echo "⏩ Skipped installing updates."
                 fi
-    fi
-else
+            fi
+        else
             warning "Could not check for updates. You may need to check System Settings manually."
             WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
         fi
     else
         if [ "$QUIET" != true ]; then
-    echo "⏩ Skipped checking for macOS updates."
+            echo "⏩ Skipped checking for macOS updates."
         fi
     fi
 fi
 
 # Additional Security Checks (Run in Parallel)
-if [ "$QUIET" != true ]; then
-    echo ""
-    show_step 2 9 "Running Security Checks (Parallel Mode)"
-    if [ "${ENABLE_PARALLEL:-true}" = true ]; then
-        info "Running security checks in parallel for faster execution"
+if ! should_skip_step "security_checks"; then
+    if [ "$QUIET" != true ]; then
+        echo ""
+        show_step 2 9 "Running Security Checks (Parallel Mode)"
+        if [ "${ENABLE_PARALLEL:-true}" = true ]; then
+            info "Running security checks in parallel for faster execution"
+        fi
     fi
-fi
 
 # Performance tracking for parallel checks
 if type perf_start &> /dev/null; then
@@ -296,10 +402,13 @@ if [ -f "$SECURITY_RESULTS" ]; then
         cat "$SECURITY_RESULTS" | grep -E "✅|⚠️|❌" || true
     fi
     rm -f "$SECURITY_RESULTS"
+    
+    save_checkpoint "security_checks"
+fi
 fi
 
 # ClamAV antivirus
-if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_CLAMAV:-true}" = true ]; then
+if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_CLAMAV:-true}" = true ] && ! should_skip_step "clamav_scan"; then
     if [ "$QUIET" != true ]; then
 echo ""
         show_step 3 9 "Running Antivirus Scan (ClamAV)"
@@ -454,6 +563,8 @@ EXCLUDEEOF
                     info "Antivirus scan took ${duration}ms"
                 fi
             fi
+            
+            save_checkpoint "clamav_scan"
         else
             warning "Scan directory not found at $SCAN_TARGET. Skipping scan."
             WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
@@ -461,12 +572,16 @@ EXCLUDEEOF
     fi
 else
     if [ "$QUIET" != true ]; then
-        info "Skipping antivirus scan (--skip-scan flag or disabled in config)"
+        if should_skip_step "clamav_scan"; then
+            info "Skipping antivirus scan (already completed in previous run)"
+        else
+            info "Skipping antivirus scan (--skip-scan flag or disabled in config)"
+        fi
     fi
 fi
 
 # Rootkit check
-if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_RKHUNTER:-true}" = true ]; then
+if [ "$SKIP_SCAN" != true ] && [ "${ENABLE_RKHUNTER:-true}" = true ] && ! should_skip_step "rkhunter_scan"; then
     if [ "$QUIET" != true ]; then
 echo ""
         echo "${bold}💀 Step 4: Checking for hidden rootkits (rkhunter)...${normal}"
@@ -487,47 +602,85 @@ if ! command -v rkhunter &> /dev/null; then
     fi
 
     if [ "${SKIP_RKHUNTER:-false}" != "true" ]; then
-        check_sudo
-        if [ "$QUIET" != true ]; then
-            echo "📥 Updating rootkit database..."
-        fi
-        
-        # Fix rkhunter BINDIR configuration issue if ~/.dotnet/tools exists
-        if [ -d "$HOME/.dotnet/tools" ] && [ -f /etc/rkhunter.conf ]; then
-            # Temporarily fix BINDIR to exclude problematic directory
-            sudo sed -i.bak 's|^BINDIR=.*|BINDIR=/usr/bin:/bin:/usr/local/bin:/usr/local/sbin|' /etc/rkhunter.conf 2>/dev/null || true
-        fi
-        
-        if sudo rkhunter --update > /dev/null 2>&1; then
-            success "Rootkit database updated."
+        # Try to get sudo access - attempt non-interactive first
+        has_sudo=false
+        if sudo -n true 2>/dev/null; then
+            has_sudo=true
+            if [ "$QUIET" != true ]; then
+                info "Using passwordless sudo for rootkit scan"
+            fi
+        elif [ "$INTERACTIVE" = true ]; then
+            if check_sudo_graceful; then
+                has_sudo=true
+            fi
         else
-            warning "Could not update rootkit database (this is often normal)."
-            WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            # In non-interactive mode, try one more time
+            if sudo -n true 2>/dev/null; then
+                has_sudo=true
+            else
+                warning "Skipping rootkit scan (sudo access required)"
+                info "💡 To run rootkit scan:"
+                info "   Option 1: Run from Terminal (safest - recommended):"
+                info "     cd '$SCRIPT_DIR' && sudo ./mac_guardian.sh --resume"
+                info "   Option 2: Use sudo cache (password lasts 15 min):"
+                info "     Run: sudo -v"
+                info "     Then: cd '$SCRIPT_DIR' && ./mac_guardian.sh --resume"
+                info "   Option 3: Command-specific passwordless sudo (advanced):"
+                info "     Run: sudo visudo"
+                info "     Add: $(whoami) ALL=(ALL) NOPASSWD: /usr/local/bin/rkhunter, /opt/homebrew/bin/rkhunter"
+                info "     ⚠️  Note: This reduces security. See SUDO_SECURITY.md for details."
+                SKIP_RKHUNTER=true
+                WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            fi
         fi
         
-        if [ "$QUIET" != true ]; then
-            echo "🔍 Running rootkit scan..."
-        fi
-        # Run scan and filter out BINDIR configuration warnings (these are harmless)
-        local rkhunter_output
-        rkhunter_output=$(sudo rkhunter --check --sk 2>&1 || true)
-        
-        # Check if scan actually completed (look for summary)
-        if echo "$rkhunter_output" | grep -q "System checks summary\|Rootkit scan results"; then
-            # Filter out BINDIR warnings from output
-            echo "$rkhunter_output" | grep -v "Invalid BINDIR\|Invalid directory found" || true
-            success "Rootkit scan completed (configuration warnings are normal)."
-            log_message "SUCCESS" "Rootkit scan completed"
-        else
-            # Show output but note that BINDIR warnings are normal
-            echo "$rkhunter_output" | grep -v "Invalid BINDIR\|Invalid directory found" || echo "$rkhunter_output"
-            warning "Rootkit scan completed with warnings. BINDIR configuration warnings are normal and can be ignored."
-            WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+        if [ "$has_sudo" = true ] && [ "${SKIP_RKHUNTER:-false}" != "true" ]; then
+            if [ "$QUIET" != true ]; then
+                echo "📥 Updating rootkit database..."
+            fi
+            
+            # Fix rkhunter BINDIR configuration issue if ~/.dotnet/tools exists
+            if [ -d "$HOME/.dotnet/tools" ] && [ -f /etc/rkhunter.conf ]; then
+                # Temporarily fix BINDIR to exclude problematic directory
+                sudo -n sed -i.bak 's|^BINDIR=.*|BINDIR=/usr/bin:/bin:/usr/local/bin:/usr/local/sbin|' /etc/rkhunter.conf 2>/dev/null || true
+            fi
+            
+            if sudo -n rkhunter --update > /dev/null 2>&1; then
+                success "Rootkit database updated."
+            else
+                warning "Could not update rootkit database (this is often normal)."
+                WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            fi
+            
+            if [ "$QUIET" != true ]; then
+                echo "🔍 Running rootkit scan..."
+            fi
+            # Run scan and filter out BINDIR configuration warnings (these are harmless)
+            rkhunter_output=$(sudo -n rkhunter --check --sk 2>&1 || true)
+            
+            # Check if scan actually completed (look for summary)
+            if echo "$rkhunter_output" | grep -q "System checks summary\|Rootkit scan results"; then
+                # Filter out BINDIR warnings from output
+                echo "$rkhunter_output" | grep -v "Invalid BINDIR\|Invalid directory found" || true
+                success "Rootkit scan completed (configuration warnings are normal)."
+                log_message "SUCCESS" "Rootkit scan completed"
+            else
+                # Show output but note that BINDIR warnings are normal
+                echo "$rkhunter_output" | grep -v "Invalid BINDIR\|Invalid directory found" || echo "$rkhunter_output"
+                warning "Rootkit scan completed with warnings. BINDIR configuration warnings are normal and can be ignored."
+                WARNINGS_FOUND=$((WARNINGS_FOUND + 1))
+            fi
+            
+            save_checkpoint "rkhunter_scan"
         fi
     fi
 else
     if [ "$QUIET" != true ]; then
-        info "Skipping rootkit scan (--skip-scan flag or disabled in config)"
+        if should_skip_step "rkhunter_scan"; then
+            info "Skipping rootkit scan (already completed in previous run)"
+        else
+            info "Skipping rootkit scan (--skip-scan flag or disabled in config)"
+        fi
     fi
 fi
 
@@ -660,7 +813,7 @@ if [ -f "$SCRIPT_DIR/action_email_notifier.sh" ] && [ -n "${REPORT_EMAIL:-${ALER
     source "$SCRIPT_DIR/action_email_notifier.sh" 2>/dev/null || true
     
     # Create event data
-    local event_data
+    event_data=""
     if [ $ISSUES_FOUND -gt 0 ]; then
         event_data=$(cat <<EOF
 [

@@ -63,6 +63,10 @@ struct DashboardView: View {
                 CacheCleanerQuickAccess()
                     .environmentObject(workspace)
                 
+                // Cursor Cache Cleaner Quick Access
+                CursorCacheCleanerQuickAccess()
+                    .environmentObject(workspace)
+                
                 // System Health
                 SystemHealthCard()
             }
@@ -326,6 +330,14 @@ struct QuickActionsCard: View {
                 ) {
                     workspace.showCacheCleaner = true
                 }
+                
+                QuickActionButton(
+                    title: "Cursor Cache",
+                    icon: "cursorarrow.click",
+                    color: .blue
+                ) {
+                    workspace.showCursorCacheCleaner = true
+                }
             }
         }
         .padding()
@@ -398,6 +410,43 @@ struct CacheCleanerQuickAccess: View {
             }
             
             Text("Safely clear browser caches (Safari, Chrome, Firefox, Edge) and system caches to free up disk space. Preview before cleaning.")
+                .font(.caption)
+                .foregroundColor(.themeTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+    }
+}
+
+struct CursorCacheCleanerQuickAccess: View {
+    @EnvironmentObject var workspace: WorkspaceState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Cursor Cache Cleaner")
+                    .font(.headline)
+                    .foregroundColor(.themeText)
+                Spacer()
+                Button {
+                    workspace.showCursorCacheCleaner = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "cursorarrow.click")
+                        Text("Open Cursor Cleaner")
+                    }
+                    .font(.subheadline)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+            }
+            
+            Text("Clear Cursor editor cache for your projects. Fixes cache issues and frees up disk space. Automatically scans for projects with Cursor cache.")
                 .font(.caption)
                 .foregroundColor(.themeTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)

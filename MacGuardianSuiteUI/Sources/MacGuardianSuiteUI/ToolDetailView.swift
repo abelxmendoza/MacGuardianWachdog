@@ -43,6 +43,24 @@ struct ToolDetailView: View {
                         .stroke(Color.themePurpleDark, lineWidth: 2)
                 )
                 .shadow(color: .themePurple.opacity(0.3), radius: 12)
+        } else if tool.name == "Cursor Cache Cleaner" {
+            CursorCacheCleanerView()
+                .padding(32)
+                .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.themePurpleDark, lineWidth: 2)
+                )
+                .shadow(color: .themePurple.opacity(0.3), radius: 12)
+        } else if tool.name == "Fix App Icons" {
+            FixAppIconsView()
+                .padding(32)
+                .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.themePurpleDark, lineWidth: 2)
+                )
+                .shadow(color: .themePurple.opacity(0.3), radius: 12)
         } else {
             VStack(alignment: .leading, spacing: 24) {
                 header
