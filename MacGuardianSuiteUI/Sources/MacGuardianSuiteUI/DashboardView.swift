@@ -55,6 +55,10 @@ struct DashboardView: View {
                 // Quick Actions
                 QuickActionsCard(workspace: workspace)
                 
+                // Process Killer Quick Access
+                ProcessKillerQuickAccess()
+                    .environmentObject(workspace)
+                
                 // System Health
                 SystemHealthCard()
             }
@@ -302,7 +306,52 @@ struct QuickActionsCard: View {
                 ) {
                     workspace.selectedView = .reports
                 }
+                
+                QuickActionButton(
+                    title: "Kill Processes",
+                    icon: "xmark.circle.fill",
+                    color: .red
+                ) {
+                    workspace.showProcessKiller = true
+                }
             }
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+    }
+}
+
+struct ProcessKillerQuickAccess: View {
+    @EnvironmentObject var workspace: WorkspaceState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Process Killer")
+                    .font(.headline)
+                    .foregroundColor(.themeText)
+                Spacer()
+                Button {
+                    workspace.showProcessKiller = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark.circle.fill")
+                        Text("Open Process Killer")
+                    }
+                    .font(.subheadline)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+            
+            Text("Quickly close applications that won't quit normally. Especially useful for Cursor, Firefox, Slack, Discord, and other stubborn apps.")
+                .font(.caption)
+                .foregroundColor(.themeTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding()
         .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))

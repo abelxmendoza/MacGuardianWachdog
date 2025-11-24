@@ -9,22 +9,62 @@ struct ToolDetailView: View {
     let runAction: (SuiteTool) -> Void
     @State private var updateTimer: Timer?
     @State private var currentTime = Date()
+    
+    // Timer to update running status
+    private func startStatusTimer() {
+        updateTimer?.invalidate()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            currentTime = Date()
+        }
+    }
+    
+    private func stopStatusTimer() {
+        updateTimer?.invalidate()
+        updateTimer = nil
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            header
-            Divider()
-                .background(Color.themePurpleDark)
-            executionSection
-            Spacer()
+        // Special handling for Process Killer - it's a UI-only tool
+        if tool.name == "Process Killer" {
+            ProcessKillerView()
+                .padding(32)
+                .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.themePurpleDark, lineWidth: 2)
+                )
+                .shadow(color: .themePurple.opacity(0.3), radius: 12)
+        } else {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                Divider()
+                    .background(Color.themePurpleDark)
+                executionSection
+                Spacer()
+            }
+            .padding(32)
+            .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.themePurpleDark, lineWidth: 2)
+            )
+            .shadow(color: .themePurple.opacity(0.3), radius: 12)
+            .onChange(of: workspace.execution?.state) { _, newState in
+                if case .running = newState {
+                    startStatusTimer()
+                } else {
+                    stopStatusTimer()
+                }
+            }
+            .onAppear {
+                if case .running = workspace.execution?.state {
+                    startStatusTimer()
+                }
+            }
+            .onDisappear {
+                stopStatusTimer()
+            }
         }
-        .padding(32)
-        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.themePurpleDark, lineWidth: 2)
-        )
-        .shadow(color: .themePurple.opacity(0.3), radius: 12)
     }
 
     private var header: some View {
@@ -40,27 +80,29 @@ struct ToolDetailView: View {
                         .foregroundColor(.themeTextSecondary)
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Script Path")
-                        .font(.caption)
-                        .foregroundColor(.themeTextSecondary)
-                    HStack(spacing: 6) {
-                    Text(verbatim: workspace.resolve(path: tool.relativePath))
-                        .font(.callout.monospaced())
-                            .foregroundColor(.themeText)
-                        .textSelection(.enabled)
-                        .lineLimit(2)
-                        .frame(maxWidth: 320, alignment: .trailing)
-                        if !workspace.checkScriptExists(for: tool) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.red)
-                                .font(.caption)
-                                .help("Script file not found. Check the repository path.")
-                        } else {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.caption)
-                                .help("Script file found and ready to run")
+                if !tool.relativePath.isEmpty {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Script Path")
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                        HStack(spacing: 6) {
+                        Text(verbatim: workspace.resolve(path: tool.relativePath))
+                            .font(.callout.monospaced())
+                                .foregroundColor(.themeText)
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                            .frame(maxWidth: 320, alignment: .trailing)
+                            if !workspace.checkScriptExists(for: tool) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                                    .help("Script file not found. Check the repository path.")
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                                    .help("Script file found and ready to run")
+                            }
                         }
                     }
                 }
@@ -87,30 +129,87 @@ struct ToolDetailView: View {
                     in: RoundedRectangle(cornerRadius: 8)
                 )
             }
+            
+            // Terminal recommendation badge
+            if tool.executionMode == .terminalRecommended || tool.executionMode == .terminal {
+                HStack(spacing: 8) {
+                    Image(systemName: tool.executionMode.icon)
+                        .foregroundColor(.themePurple)
+                    Text(tool.executionMode.rawValue)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.themePurple)
+                    Text("•")
+                        .foregroundColor(.themeTextSecondary)
+                    Text(tool.executionMode.description)
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Color.themePurple.opacity(0.15),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+                
+                // Terminal command helper
+                TerminalCommandView(tool: tool)
+                    .environmentObject(workspace)
+            }
 
             HStack(spacing: 12) {
-                Button {
-                    // Clear any previous execution for this tool
-                    if let currentExecution = workspace.execution, currentExecution.tool.id == tool.id {
-                        workspace.execution = nil
+                // Show "Run in Terminal" button for terminal-recommended tools
+                if tool.executionMode == .terminalRecommended || tool.executionMode == .terminal {
+                    Button {
+                        openTerminalForTool()
+                    } label: {
+                        Label("Run in Terminal", systemImage: "terminal.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
                     }
-                    // Request safety confirmation if needed
-                    workspace.requestSafetyConfirmation(for: tool) {
-                        // Small delay to ensure UI updates
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    runAction(tool)
-                        }
-                    }
-                } label: {
-                    Label("Run Module", systemImage: "play.fill")
-                        .font(.headline)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.themePurple)
+                    .help("Opens Terminal with command ready to run")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.themePurple)
-                .disabled(!workspace.checkScriptExists(for: tool) || !workspace.validateRepositoryPath().isValid)
-                .help(workspace.checkScriptExists(for: tool) ? "Execute this module" : "Script not found - check repository path")
+                
+                // For terminal-only tools, disable UI execution and show warning
+                if tool.executionMode == .terminal {
+                    Button {
+                        // Do nothing - just show info
+                    } label: {
+                        Label("Terminal Only", systemImage: "exclamationmark.triangle.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
+                    .disabled(true)
+                    .help("This script requires Terminal - use the 'Run in Terminal' button above")
+                } else {
+                    Button {
+                        // Clear any previous execution for this tool
+                        if let currentExecution = workspace.execution, currentExecution.tool.id == tool.id {
+                            workspace.execution = nil
+                        }
+                        // Request safety confirmation if needed
+                        workspace.requestSafetyConfirmation(for: tool) {
+                            // Small delay to ensure UI updates
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        runAction(tool)
+                            }
+                        }
+                    } label: {
+                        Label("Run Module", systemImage: "play.fill")
+                            .font(.headline)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.themePurple)
+                    .disabled(!workspace.checkScriptExists(for: tool) || !workspace.validateRepositoryPath().isValid)
+                    .help(workspace.checkScriptExists(for: tool) ? "Execute this module" : "Script not found - check repository path")
+                }
 
                 Button {
                     revealInFinder()
@@ -228,6 +327,25 @@ struct ToolDetailView: View {
             Spacer()
                 // Real-time timer
                 LiveTimer(execution: execution, currentTime: currentTime)
+            }
+            
+            // Show last line of output as a preview when running
+            if case .running = execution.state, !execution.log.isEmpty {
+                let logLines = execution.log.components(separatedBy: .newlines)
+                if let lastLine = logLines.last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.themePurple)
+                        Text(lastLine.trimmingCharacters(in: .whitespaces))
+                            .font(.caption.monospaced())
+                            .foregroundColor(.themeTextSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                }
             }
             
             // Show output stats
@@ -390,6 +508,48 @@ struct ToolDetailView: View {
         )
     }
 
+    private func openTerminalForTool() {
+        #if os(macOS)
+        let resolvedPath = workspace.resolve(path: tool.relativePath)
+        let scriptDir = (resolvedPath as NSString).deletingLastPathComponent
+        let scriptName = (resolvedPath as NSString).lastPathComponent
+        
+        var cmd = "cd '\(scriptDir)'"
+        if tool.requiresSudo || tool.executionMode == .terminal {
+            cmd += " && sudo ./'\(scriptName)'"
+        } else {
+            cmd += " && ./'\(scriptName)'"
+        }
+        
+        if !tool.arguments.isEmpty {
+            cmd += " \(tool.arguments.joined(separator: " "))"
+        }
+        
+        // Add resume flag if checkpoint exists
+        if tool.relativePath.contains("mac_guardian") {
+            let checkpointFile = "\(FileManager.default.homeDirectoryForCurrentUser.path)/.macguardian/checkpoints/mac_guardian_checkpoint.txt"
+            if FileManager.default.fileExists(atPath: checkpointFile) {
+                cmd += " --resume"
+            }
+        }
+        
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "\(cmd)"
+        end tell
+        """
+        
+        if let appleScript = NSAppleScript(source: script) {
+            var error: NSDictionary?
+            appleScript.executeAndReturnError(&error)
+            if let error = error {
+                print("Error opening Terminal: \(error)")
+            }
+        }
+        #endif
+    }
+    
     private func revealInFinder() {
         #if os(macOS)
         NSWorkspace.shared.activateFileViewerSelecting([

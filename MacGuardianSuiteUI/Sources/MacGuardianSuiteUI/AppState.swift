@@ -32,6 +32,31 @@ struct SuiteTool: Identifiable, Hashable {
             }
         }
     }
+    
+    enum ExecutionMode: String {
+        case ui = "UI"
+        case terminal = "Terminal"
+        case terminalRecommended = "Terminal Recommended"
+        
+        var description: String {
+            switch self {
+            case .ui:
+                return "Can be run from the UI"
+            case .terminal:
+                return "Must be run from Terminal (requires sudo or interactive input)"
+            case .terminalRecommended:
+                return "Recommended to run from Terminal for full functionality and security"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .ui: return "app.window"
+            case .terminal: return "terminal.fill"
+            case .terminalRecommended: return "terminal"
+            }
+        }
+    }
 
     let id = UUID()
     let name: String
@@ -42,6 +67,7 @@ struct SuiteTool: Identifiable, Hashable {
     let requiresSudo: Bool
     let safetyLevel: SafetyLevel
     let destructiveOperations: [String] // List of what this script might do
+    let executionMode: ExecutionMode
 
     init(
         name: String,
@@ -51,7 +77,8 @@ struct SuiteTool: Identifiable, Hashable {
         arguments: [String] = [],
         requiresSudo: Bool = false,
         safetyLevel: SafetyLevel = .safe,
-        destructiveOperations: [String] = []
+        destructiveOperations: [String] = [],
+        executionMode: ExecutionMode = .ui
     ) {
         self.name = name
         self.description = description
@@ -61,6 +88,7 @@ struct SuiteTool: Identifiable, Hashable {
         self.requiresSudo = requiresSudo
         self.safetyLevel = safetyLevel
         self.destructiveOperations = destructiveOperations
+        self.executionMode = executionMode
     }
 
     func commandLine(using workspace: WorkspaceState) -> [String] {
@@ -104,9 +132,15 @@ final class WorkspaceState: ObservableObject {
     @Published var pendingExecution: (() -> Void)? = nil
     @Published var executionHistory: [CommandExecution] = []
     @Published var selectedView: AppView = .tools
+    @Published var showProcessKiller: Bool = false
     @Published var reportEmail: String = ""
     @Published var smtpUsername: String = ""
-    @Published var smtpPassword: String = ""
+    @Published var smtpPassword: String = "" {
+        didSet {
+            // Don't store password in UserDefaults - use Keychain instead
+            // This is handled in SettingsView
+        }
+    }
 
     init(defaultPath: String = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Desktop")
@@ -116,6 +150,32 @@ final class WorkspaceState: ObservableObject {
         self.safeMode = UserDefaults.standard.object(forKey: "safeMode") as? Bool ?? true
         self.reportEmail = UserDefaults.standard.string(forKey: "reportEmail") ?? ""
         self.smtpUsername = UserDefaults.standard.string(forKey: "smtpUsername") ?? ""
+        
+        // Load password from Keychain if available
+        if let password = SecureStorage.shared.getPassword(forKey: "smtpPassword") {
+            self.smtpPassword = password
+        }
+        
+        // Verify integrity of critical files on startup
+        verifyAppIntegrity()
+    }
+    
+    /// Verify integrity of critical app files
+    private func verifyAppIntegrity() {
+        let results = IntegrityVerifier.shared.verifyCriticalFiles(repositoryPath: repositoryPath)
+        
+        var hasIssues = false
+        for (file, result) in results {
+            if !result.isValid {
+                hasIssues = true
+                print("⚠️ Integrity check failed for \(file): \(result.message)")
+            }
+        }
+        
+        if hasIssues {
+            // Log to audit trail
+            print("🔒 Security Warning: Some files failed integrity verification")
+        }
     }
 
     func resolve(path: String) -> String {
@@ -162,6 +222,10 @@ final class WorkspaceState: ObservableObject {
     }
     
     func checkScriptExists(for tool: SuiteTool) -> Bool {
+        // UI-only tools don't have script paths
+        if tool.relativePath.isEmpty {
+            return true
+        }
         let scriptPath = resolve(path: tool.relativePath)
         return FileManager.default.fileExists(atPath: scriptPath)
     }
@@ -225,6 +289,7 @@ enum AppView: String, CaseIterable {
     case tools = "Tools"
     case reports = "Reports"
     case history = "History"
+    case security = "Security"
     case settings = "Settings"
     
     var icon: String {
@@ -233,6 +298,7 @@ enum AppView: String, CaseIterable {
         case .tools: return "wrench.and.screwdriver.fill"
         case .reports: return "doc.text.fill"
         case .history: return "clock.fill"
+        case .security: return "shield.checkered.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -262,7 +328,7 @@ final class CommandExecution: ObservableObject, Identifiable, Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    enum State {
+    enum State: Equatable {
         case idle
         case running
         case finished(Int32)
@@ -402,8 +468,40 @@ final class ShellCommandRunner {
                 let escapedDir = escapeShell(scriptDir)
                 let escapedName = escapeShell(scriptName)
                 
+                // Validate script path before execution
+                let pathValidation = InputValidator.shared.validateScriptPath(resolvedPath, repositoryPath: expandedPath)
+                if !pathValidation.isValid {
+                    DispatchQueue.main.async {
+                        execution.state = .failed("Security validation failed")
+                        execution.finishedAt = Date()
+                        execution.log.append("❌ Security Error: \(pathValidation.message)\n")
+                        execution.log.append("🔒 This action has been blocked for security reasons.\n")
+                    }
+                    return
+                }
+                
+                // Verify file integrity before execution
+                let integrityCheck = IntegrityVerifier.shared.verifyFile(resolvedPath)
+                if !integrityCheck.isValid {
+                    DispatchQueue.main.async {
+                        execution.log.append("⚠️ Integrity Warning: \(integrityCheck.message)\n")
+                        execution.log.append("   Continuing execution, but file may have been modified.\n\n")
+                    }
+                }
+                
+                // Verify file permissions
+                let permCheck = IntegrityVerifier.shared.verifyPermissions(resolvedPath)
+                if !permCheck.isValid {
+                    DispatchQueue.main.async {
+                        execution.log.append("⚠️ Permission Warning: \(permCheck.message)\n")
+                    }
+                }
+                
                 // Build command with arguments - add non-interactive flag for scripts that support it
                 var scriptArgs = tool.arguments
+                
+                // Sanitize arguments to prevent injection
+                scriptArgs = InputValidator.shared.sanitizeArguments(scriptArgs)
                 
                 // Auto-add non-interactive flag for common scripts if no args provided
                 if scriptArgs.isEmpty {
@@ -414,6 +512,30 @@ final class ShellCommandRunner {
                         scriptArgs = ["-y", "--non-interactive"]
                         DispatchQueue.main.async {
                             execution.log.append("💡 Auto-added non-interactive flag (-y) for automated execution\n")
+                        }
+                    }
+                }
+                
+                // Auto-add --resume flag if checkpoint exists (for mac_guardian.sh and mac_watchdog.sh)
+                let checkpointDir = "\(FileManager.default.homeDirectoryForCurrentUser.path)/.macguardian/checkpoints"
+                if scriptName.contains("mac_guardian") {
+                    let checkpointFile = "\(checkpointDir)/mac_guardian_checkpoint.txt"
+                    if FileManager.default.fileExists(atPath: checkpointFile) {
+                        if !scriptArgs.contains("--resume") {
+                            scriptArgs.append("--resume")
+                            DispatchQueue.main.async {
+                                execution.log.append("🔄 Auto-added --resume flag (checkpoint detected)\n")
+                            }
+                        }
+                    }
+                } else if scriptName.contains("mac_watchdog") {
+                    let checkpointFile = "\(checkpointDir)/mac_watchdog_checkpoint.txt"
+                    if FileManager.default.fileExists(atPath: checkpointFile) {
+                        if !scriptArgs.contains("--resume") {
+                            scriptArgs.append("--resume")
+                            DispatchQueue.main.async {
+                                execution.log.append("🔄 Auto-added --resume flag (checkpoint detected)\n")
+                            }
                         }
                     }
                 }
@@ -544,10 +666,30 @@ final class ShellCommandRunner {
                 } else {
                     // Detect common error patterns and provide helpful guidance
                     let logText = execution.log.lowercased()
+                    let logTrimmed = logText.trimmingCharacters(in: .whitespacesAndNewlines)
                     var errorMessage = "Exit code \(status)"
                     var helpfulTip = ""
                     
-                    if logText.contains("sudo") && (logText.contains("password") || logText.contains("terminal is required")) {
+                    // Check for interactive scripts (empty output + terminal mode + quick failure)
+                    if (logTrimmed.isEmpty || logTrimmed.count < 50) && tool.executionMode == .terminal && Date().timeIntervalSince(execution.startedAt) < 1.0 {
+                        errorMessage = "Interactive script - Terminal required"
+                        let repoPath = workspace.repositoryPath
+                        let scriptPath = tool.relativePath
+                        helpfulTip = """
+                        
+                        🖥️ Interactive Script Detected
+                        
+                        This script requires interactive input (menu selection, user prompts).
+                        It cannot run from the UI - you must use Terminal.
+                        
+                        ✅ Solution:
+                        1. Click the "Run in Terminal" button (purple button above)
+                        2. Or run manually: cd '\(repoPath)' && ./\(scriptPath)
+                        
+                        The script will show an interactive menu where you can select options.
+                        
+                        """
+                    } else if logText.contains("sudo") && (logText.contains("password") || logText.contains("terminal is required") || logText.contains("sudo access required")) {
                         errorMessage = "Sudo access required"
                         let repoPath = workspace.repositoryPath
                         let scriptPath = tool.relativePath
@@ -555,19 +697,48 @@ final class ShellCommandRunner {
                         
                         🔐 Sudo Access Required
                         
-                        Some operations in this script require administrator privileges (sudo).
+                        Some operations (like rootkit scan) require administrator privileges.
                         The app cannot provide interactive password input for security reasons.
                         
+                        ✅ Good News: Most steps completed! Only rootkit scan was skipped.
+                        
                         Options:
-                        1. Run the script from Terminal with sudo access:
+                        1. 🔄 Resume from checkpoint:
+                           Click "Run Module" again - completed steps will be skipped.
+                        
+                        2. Run rootkit scan from Terminal (safest):
                            cd '\(repoPath)'
-                           sudo ./\(scriptPath)
+                           sudo ./\(scriptPath) --resume
+                           (This will skip completed steps and only run rootkit scan)
                         
-                        2. Some operations may have been skipped. Check the output above
-                           to see which steps completed successfully.
+                        3. Use sudo cache (password lasts 15 min):
+                           Run: sudo -v
+                           Then click "Run Module" again
                         
-                        3. For automated execution, you may need to configure passwordless
-                           sudo for specific commands (see sudoers configuration).
+                        4. Configure passwordless sudo (advanced - reduces security):
+                           Run: sudo visudo
+                           Add: \(NSUserName()) ALL=(ALL) NOPASSWD: /usr/local/bin/rkhunter, /opt/homebrew/bin/rkhunter
+                           ⚠️  Warning: This reduces security. See SUDO_SECURITY.md for details.
+                        
+                        Note: All other security checks completed successfully. Rootkit scan is optional.
+                        
+                        """
+                    } else if logText.contains("interactive") || logText.contains("read") || (logText.isEmpty && tool.executionMode == .terminal) {
+                        errorMessage = "Interactive script - Terminal required"
+                        let repoPath = workspace.repositoryPath
+                        let scriptPath = tool.relativePath
+                        helpfulTip = """
+                        
+                        🖥️ Interactive Script Detected
+                        
+                        This script requires interactive input (menu selection, user prompts).
+                        It cannot run from the UI - you must use Terminal.
+                        
+                        ✅ Solution:
+                        1. Click the "Run in Terminal" button (purple button above)
+                        2. Or run manually: cd '\(repoPath)' && ./\(scriptPath)
+                        
+                        The script will show an interactive menu where you can select options.
                         
                         """
                     } else if logText.contains("permission denied") || logText.contains("cannot execute") {
@@ -611,16 +782,19 @@ extension SuiteCategory {
                 tools: [
                     SuiteTool(
                         name: "Run mac_suite.sh",
-                        description: "Launch the interactive command-line interface for the entire suite.",
+                        description: "Launch the interactive command-line menu for the entire suite. ⚠️ This is an interactive menu - must be run from Terminal.",
                         relativePath: "mac_suite.sh",
-                        arguments: []
+                        arguments: [],
+                        requiresSudo: false,
+                        executionMode: .terminal
                     ),
                     SuiteTool(
                         name: "Run mac_guardian.sh",
-                        description: "Execute the cleanup and security hardening workflow.",
+                        description: "Execute the cleanup and security hardening workflow. ⚠️ Terminal recommended for full functionality (rootkit scan requires sudo).",
                         relativePath: "MacGuardianSuite/mac_guardian.sh",
                         safetyLevel: .caution,
-                        destructiveOperations: ["Cleans temporary files", "Updates system packages", "May require sudo for some operations"]
+                        destructiveOperations: ["Cleans temporary files", "Updates system packages", "May require sudo for some operations"],
+                        executionMode: .terminalRecommended
                     ),
                     SuiteTool(
                         name: "Run mac_watchdog.sh",
@@ -658,6 +832,15 @@ extension SuiteCategory {
                             "Can modify system permissions",
                             "Can quarantine files"
                         ]
+                    ),
+                    SuiteTool(
+                        name: "Process Killer",
+                        description: "Safely kill processes and force quit applications that won't close normally. Perfect for Cursor, Firefox, Slack, Discord, and other stubborn apps.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .destructive,
+                        destructiveOperations: ["Can terminate running applications", "Force quit may cause data loss"],
+                        executionMode: .ui
                     )
                 ]
             ),
@@ -712,6 +895,20 @@ extension SuiteCategory {
                         description: "Enable, disable, and configure suite modules.",
                         relativePath: "MacGuardianSuite/module_manager.py",
                         kind: .python
+                    ),
+                    SuiteTool(
+                        name: "Browser Cleanup",
+                        description: "Clean browser caches, cookies, history, and autofill data for Safari, Chrome, Firefox, and Edge.",
+                        relativePath: "MacGuardianSuite/browser_cleanup.sh",
+                        safetyLevel: .caution,
+                        destructiveOperations: ["Cleans browser cache files", "May delete cookies and browsing history if --all flag is used"]
+                    ),
+                    SuiteTool(
+                        name: "App Security Check",
+                        description: "Verify integrity and security of MacGuardian Suite files. Checks file checksums, permissions, and detects tampering.",
+                        relativePath: "MacGuardianSuite/app_security.sh",
+                        arguments: ["--all"],
+                        safetyLevel: .safe
                     )
                 ]
             )

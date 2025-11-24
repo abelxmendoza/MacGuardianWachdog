@@ -102,7 +102,10 @@ struct ContentView: View {
                     DashboardView()
                         .environmentObject(workspace)
                 case .tools:
-            detailView
+                    detailView
+                case .security:
+                    SecurityDashboardView()
+                        .environmentObject(workspace)
                 case .reports:
                     ReportsView()
                         .environmentObject(workspace)
@@ -117,6 +120,10 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.themeBlack)
+        .sheet(isPresented: $workspace.showProcessKiller) {
+            ProcessKillerView()
+                .frame(minWidth: 800, minHeight: 600)
+        }
     }
     
     private struct TabButton: View {
@@ -238,13 +245,19 @@ struct ContentView: View {
                         HStack(spacing: 8) {
                         Label(tool.name, systemImage: icon(for: tool))
                             Spacer()
+                            if tool.executionMode == .terminalRecommended || tool.executionMode == .terminal {
+                                Image(systemName: tool.executionMode.icon)
+                                    .foregroundColor(.themePurple)
+                                    .font(.caption2)
+                                    .help(tool.executionMode.description)
+                            }
                             if tool.safetyLevel != .safe {
                                 Image(systemName: tool.safetyLevel.icon)
                                     .foregroundColor(tool.safetyLevel == .destructive ? .red : .orange)
                                     .font(.caption2)
                                     .help(tool.safetyLevel.description)
                             }
-                            if !workspace.checkScriptExists(for: tool) {
+                            if !tool.relativePath.isEmpty && !workspace.checkScriptExists(for: tool) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundColor(.orange)
                                     .font(.caption)
