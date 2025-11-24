@@ -24,9 +24,18 @@ struct ToolDetailView: View {
     }
 
     var body: some View {
-        // Special handling for Process Killer - it's a UI-only tool
+        // Special handling for UI-only tools
         if tool.name == "Process Killer" {
             ProcessKillerView()
+                .padding(32)
+                .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.themePurpleDark, lineWidth: 2)
+                )
+                .shadow(color: .themePurple.opacity(0.3), radius: 12)
+        } else if tool.name == "Cache Cleaner" {
+            CacheCleanerView()
                 .padding(32)
                 .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(

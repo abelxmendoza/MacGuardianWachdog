@@ -124,6 +124,11 @@ struct ContentView: View {
             ProcessKillerView()
                 .frame(minWidth: 800, minHeight: 600)
         }
+        .sheet(isPresented: $workspace.showCacheCleaner) {
+            CacheCleanerView()
+                .frame(minWidth: 900, minHeight: 700)
+                .environmentObject(workspace)
+        }
     }
     
     private struct TabButton: View {

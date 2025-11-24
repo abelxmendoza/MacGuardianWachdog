@@ -59,6 +59,10 @@ struct DashboardView: View {
                 ProcessKillerQuickAccess()
                     .environmentObject(workspace)
                 
+                // Cache Cleaner Quick Access
+                CacheCleanerQuickAccess()
+                    .environmentObject(workspace)
+                
                 // System Health
                 SystemHealthCard()
             }
@@ -314,6 +318,14 @@ struct QuickActionsCard: View {
                 ) {
                     workspace.showProcessKiller = true
                 }
+                
+                QuickActionButton(
+                    title: "Clean Cache",
+                    icon: "trash.fill",
+                    color: .orange
+                ) {
+                    workspace.showCacheCleaner = true
+                }
             }
         }
         .padding()
@@ -349,6 +361,43 @@ struct ProcessKillerQuickAccess: View {
             }
             
             Text("Quickly close applications that won't quit normally. Especially useful for Cursor, Firefox, Slack, Discord, and other stubborn apps.")
+                .font(.caption)
+                .foregroundColor(.themeTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+    }
+}
+
+struct CacheCleanerQuickAccess: View {
+    @EnvironmentObject var workspace: WorkspaceState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Cache Cleaner")
+                    .font(.headline)
+                    .foregroundColor(.themeText)
+                Spacer()
+                Button {
+                    workspace.showCacheCleaner = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                        Text("Open Cache Cleaner")
+                    }
+                    .font(.subheadline)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            
+            Text("Safely clear browser caches (Safari, Chrome, Firefox, Edge) and system caches to free up disk space. Preview before cleaning.")
                 .font(.caption)
                 .foregroundColor(.themeTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)

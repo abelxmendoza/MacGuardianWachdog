@@ -133,6 +133,7 @@ final class WorkspaceState: ObservableObject {
     @Published var executionHistory: [CommandExecution] = []
     @Published var selectedView: AppView = .tools
     @Published var showProcessKiller: Bool = false
+    @Published var showCacheCleaner: Bool = false
     @Published var reportEmail: String = ""
     @Published var smtpUsername: String = ""
     @Published var smtpPassword: String = "" {
@@ -840,6 +841,15 @@ extension SuiteCategory {
                         kind: .shell,
                         safetyLevel: .destructive,
                         destructiveOperations: ["Can terminate running applications", "Force quit may cause data loss"],
+                        executionMode: .ui
+                    ),
+                    SuiteTool(
+                        name: "Cache Cleaner",
+                        description: "Safely clear browser caches (Safari, Chrome, Firefox, Edge) and system caches to free up disk space. Preview before cleaning.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .caution,
+                        destructiveOperations: ["Cleans browser cache files", "May delete cookies and browsing history if selected", "Cleans system cache files"],
                         executionMode: .ui
                     )
                 ]
