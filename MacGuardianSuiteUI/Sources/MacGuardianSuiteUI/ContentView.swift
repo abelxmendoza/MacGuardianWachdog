@@ -103,6 +103,16 @@ struct ContentView: View {
                         .environmentObject(workspace)
                 case .tools:
                     detailView
+                case .threatIntelligence:
+                    ThreatIntelligenceView()
+                case .blueTeam:
+                    BlueTeamDashboardView()
+                case .securityAudit:
+                    SecurityAuditView()
+                case .remediation:
+                    RemediationCenterView()
+                case .omegaGuardian:
+                    OmegaGuardianView()
                 case .security:
                     SecurityDashboardView()
                         .environmentObject(workspace)
@@ -140,6 +150,7 @@ struct ContentView: View {
         let view: AppView
         let isSelected: Bool
         let action: () -> Void
+        @StateObject private var incidentStore = IncidentStore.shared
         
         var body: some View {
             Button(action: action) {
@@ -148,6 +159,17 @@ struct ContentView: View {
                         .font(.subheadline)
                     Text(view.rawValue)
                         .font(.subheadline)
+                    
+                    // Show badge for Omega Guardian if there are unacknowledged incidents
+                    if view == .omegaGuardian && incidentStore.unacknowledgedCount > 0 {
+                        Text("\(incidentStore.unacknowledgedCount)")
+                            .font(.caption2.bold())
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red)
+                            .clipShape(Capsule())
+                    }
                 }
                 .foregroundColor(isSelected ? .themePurple : .themeTextSecondary)
                 .padding(.horizontal, 16)

@@ -194,6 +194,22 @@ struct FixAppIconsView: View {
                 
                 if FileManager.default.fileExists(atPath: appPath) {
                     appPathToFix = appPath
+                    
+                    // Also run set_app_icon.sh for more comprehensive icon setting
+                    let setIconScriptPath = FileManager.default.homeDirectoryForCurrentUser
+                        .appendingPathComponent("Desktop")
+                        .appendingPathComponent("MacGuardianProject")
+                        .appendingPathComponent("MacGuardianSuiteUI")
+                        .appendingPathComponent("set_app_icon.sh")
+                        .path
+                    
+                    if FileManager.default.fileExists(atPath: setIconScriptPath) {
+                        let setIconResult = runSetAppIconScript(scriptPath: setIconScriptPath)
+                        if !setIconResult.success {
+                            // Log but don't fail - fix_app_icons.sh will still run
+                            print("Warning: set_app_icon.sh failed: \(setIconResult.message)")
+                        }
+                    }
                 }
             }
             
@@ -273,6 +289,38 @@ func runFixAppIconsScript(args: [String], appPath: String?) -> (success: Bool, m
         
         if process.terminationStatus == 0 {
             return (true, output.isEmpty ? "Icon cache cleared" : output)
+        } else {
+            return (false, "Error: \(output.isEmpty ? "Script failed" : output)")
+        }
+    } catch {
+        return (false, "Failed to run: \(error.localizedDescription)")
+    }
+}
+
+func runSetAppIconScript(scriptPath: String) -> (success: Bool, message: String) {
+    guard FileManager.default.fileExists(atPath: scriptPath) else {
+        return (false, "set_app_icon.sh not found")
+    }
+    
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+    
+    let command = "cd '\(FileManager.default.homeDirectoryForCurrentUser.path)/Desktop/MacGuardianProject/MacGuardianSuiteUI' && bash '\(scriptPath)'"
+    process.arguments = ["-c", command]
+    
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = pipe
+    
+    do {
+        try process.run()
+        process.waitUntilExit()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        
+        if process.terminationStatus == 0 {
+            return (true, output.isEmpty ? "Icon set successfully" : output)
         } else {
             return (false, "Error: \(output.isEmpty ? "Script failed" : output)")
         }

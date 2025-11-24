@@ -1,5 +1,5 @@
 #!/bin/bash
-# More reliable method to set app icon on macOS
+# Force set app icon using all available methods
 
 set -e
 
@@ -9,6 +9,7 @@ ICON_ICNS="$SCRIPT_DIR/Resources/images/MacGuardianLogo.icns"
 
 if [ ! -d "$APP_BUNDLE" ]; then
     echo "❌ App bundle not found: $APP_BUNDLE"
+    echo "   Run ./build_app.sh first"
     exit 1
 fi
 
@@ -17,24 +18,21 @@ if [ ! -f "$ICON_ICNS" ]; then
     exit 1
 fi
 
-echo "🎨 Setting app icon using multiple methods..."
+echo "🎨 Force-setting app icon using all methods..."
+echo ""
 
 # Ensure icon is in bundle Resources
-echo "   Step 1: Copying icon to bundle..."
-cp "$ICON_ICNS" "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns" 2>/dev/null || true
-chmod 644 "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns" 2>/dev/null || true
+echo "1️⃣  Copying icon to bundle..."
+cp "$ICON_ICNS" "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns"
+chmod 644 "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns"
 
-# Update Info.plist using plutil (most reliable)
-echo "   Step 2: Updating Info.plist..."
-if command -v plutil &> /dev/null; then
-    plutil -replace CFBundleIconFile -string "MacGuardianLogo" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
-    # Set CFBundleIconFiles as an array with the icon name
-    plutil -replace CFBundleIconFiles -array "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
-    plutil -insert CFBundleIconFiles.0 -string "MacGuardianLogo" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
-fi
+# Update Info.plist to ensure icon is referenced
+echo "2️⃣  Updating Info.plist..."
+plutil -replace CFBundleIconFile -string "MacGuardianLogo" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
+plutil -replace CFBundleIconFiles -array "MacGuardianLogo" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
 
-# Method 1: Use AppleScript to set icon (most reliable for Dock)
-echo "   Step 3: Setting icon via AppleScript..."
+# Method 1: Use AppleScript (most reliable for Dock)
+echo "3️⃣  Setting icon via AppleScript..."
 osascript <<EOF 2>/dev/null || true
 tell application "Finder"
     set theApp to POSIX file "$APP_BUNDLE" as alias
@@ -44,12 +42,12 @@ end tell
 EOF
 
 # Method 2: Use sips
-echo "   Step 4: Setting icon via sips..."
+echo "4️⃣  Setting icon via sips..."
 sips -i "$ICON_ICNS" > /dev/null 2>&1 || true
 
 # Method 3: Use DeRez/Rez to embed icon resource
 if command -v DeRez &> /dev/null && command -v Rez &> /dev/null; then
-    echo "   Step 5: Embedding icon resource..."
+    echo "5️⃣  Embedding icon resource..."
     EXECUTABLE="$APP_BUNDLE/Contents/MacOS/MacGuardianSuiteUI"
     if [ -f "$EXECUTABLE" ]; then
         ICON_RSRC=$(mktemp)
@@ -63,37 +61,52 @@ fi
 
 # Method 4: Use fileicon if available (most reliable)
 if command -v fileicon &> /dev/null; then
-    echo "   Step 6: Setting icon via fileicon..."
+    echo "6️⃣  Setting icon via fileicon..."
     fileicon set "$APP_BUNDLE" "$ICON_ICNS" 2>/dev/null || true
 fi
 
 # Update timestamps to force refresh
-echo "   Step 7: Updating timestamps..."
+echo "7️⃣  Updating timestamps..."
 touch "$APP_BUNDLE"
 touch "$APP_BUNDLE/Contents/Info.plist"
 touch "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns"
 
 # Set bundle attributes
 if command -v SetFile &> /dev/null; then
-    echo "   Step 8: Setting bundle attributes..."
+    echo "8️⃣  Setting bundle attributes..."
     SetFile -a C "$APP_BUNDLE" 2>/dev/null || true
 fi
 
 echo ""
-echo "✅ Icon set using multiple methods"
+echo "✅ Icon force-set using multiple methods"
 echo ""
-echo "🔄 Clearing icon cache..."
+echo "🔄 Clearing icon cache and restarting Dock..."
+echo "   (You may be prompted for your password)"
+
+# Clear user icon cache
 rm -rf ~/Library/Caches/com.apple.iconservices* 2>/dev/null || true
 killall Finder 2>/dev/null || true
 
+# Clear system icon cache (requires sudo)
 echo ""
-echo "💡 To see the icon:"
-echo "   1. Quit the app if running (Cmd+Q)"
-echo "   2. Run: killall Dock"
-echo "   3. Or restart your Mac"
-echo "   4. Open the app again"
+read -p "Clear system icon cache? This requires your password (y/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    sudo rm -rf /Library/Caches/com.apple.iconservices.store 2>/dev/null || true
+    sudo killall -9 com.apple.iconservices 2>/dev/null || true
+fi
+
+# Restart Dock
+killall Dock 2>/dev/null || true
+
 echo ""
-echo "   For system-wide cache clearing (requires password):"
-echo "   sudo rm -rf /Library/Caches/com.apple.iconservices.store"
-echo "   sudo killall -9 com.apple.iconservices"
+echo "✅ Done! The icon should now appear."
+echo ""
+echo "💡 If the icon still doesn't show:"
+echo "   1. Quit the app completely (Cmd+Q)"
+echo "   2. Restart your Mac"
+echo "   3. Open the app again"
+echo ""
+echo "   To verify the icon file:"
+echo "   open '$ICON_ICNS'"
 

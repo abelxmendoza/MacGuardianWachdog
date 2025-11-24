@@ -206,7 +206,7 @@ struct SettingsView: View {
             workspace.smtpUsername = ""
             UserDefaults.standard.removeObject(forKey: "reportEmail")
             UserDefaults.standard.removeObject(forKey: "smtpUsername")
-            SecureStorage.shared.deletePassword(forKey: "smtpPassword")
+            _ = SecureStorage.shared.deletePassword(forKey: "smtpPassword")
             showSaveConfirmation = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 showSaveConfirmation = false
@@ -242,7 +242,7 @@ struct SettingsView: View {
             }
         } else {
             // Clear password if field is empty
-            SecureStorage.shared.deletePassword(forKey: "smtpPassword")
+            _ = SecureStorage.shared.deletePassword(forKey: "smtpPassword")
         }
         
         showSaveConfirmation = true

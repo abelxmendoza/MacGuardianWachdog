@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject var workspace: WorkspaceState
+    @StateObject private var threatService = ThreatIntelligenceService.shared
     @State private var securityScore: Int = 85
     @State private var lastScanDate: Date? = nil
     @State private var activeThreats: Int = 0
@@ -67,6 +68,14 @@ struct DashboardView: View {
                 CursorCacheCleanerQuickAccess()
                     .environmentObject(workspace)
                 
+                // Threat Intelligence Quick Access
+                ThreatIntelligenceQuickAccess()
+                    .environmentObject(workspace)
+                
+                // Omega Guardian Quick Access
+                OmegaGuardianQuickAccess()
+                    .environmentObject(workspace)
+                
                 // System Health
                 SystemHealthCard()
             }
@@ -91,6 +100,9 @@ struct DashboardView: View {
         }.count
         let totalScans = max(workspace.executionHistory.count, 1)
         securityScore = Int((Double(successfulScans) / Double(totalScans)) * 100)
+        
+        // Update active threats from threat intelligence service
+        activeThreats = threatService.stats.matchesToday
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -543,5 +555,186 @@ struct HealthIndicator: View {
 
 enum HealthStatus {
     case good, warning, error
+}
+
+struct OmegaGuardianQuickAccess: View {
+    @EnvironmentObject var workspace: WorkspaceState
+    @StateObject private var incidentStore = IncidentStore.shared
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "shield.lefthalf.filled")
+                    .foregroundColor(Color(red: 0.54, green: 0.16, blue: 0.95))
+                    .font(.title2)
+                Text("Omega Guardian Alerts")
+                    .font(.headline)
+                    .foregroundColor(.themeText)
+                Spacer()
+                
+                if incidentStore.unacknowledgedCount > 0 {
+                    Text("\(incidentStore.unacknowledgedCount)")
+                        .font(.headline.bold())
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red)
+                        .clipShape(Circle())
+                }
+            }
+            
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(incidentStore.incidents.count)")
+                        .font(.title2.bold())
+                        .foregroundColor(.themePurple)
+                    Text("Total Incidents")
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                
+                Spacer()
+                
+                Button {
+                    workspace.selectedView = .omegaGuardian
+                } label: {
+                    Label("Open Console", systemImage: "arrow.right.circle.fill")
+                        .font(.subheadline.bold())
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.54, green: 0.16, blue: 0.95))
+            }
+            
+            if incidentStore.criticalCount > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.octagon.fill")
+                        .foregroundColor(Color(red: 1, green: 0.18, blue: 0.39))
+                    Text("\(incidentStore.criticalCount) critical incident(s) require attention")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 1, green: 0.18, blue: 0.39))
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+            } else if incidentStore.unacknowledgedCount > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.fill")
+                        .foregroundColor(.orange)
+                    Text("\(incidentStore.unacknowledgedCount) unacknowledged incident(s)")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                    Text("No active incidents")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+            }
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+    }
+}
+
+struct ThreatIntelligenceQuickAccess: View {
+    @EnvironmentObject var workspace: WorkspaceState
+    @StateObject private var threatService = ThreatIntelligenceService.shared
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "shield.lefthalf.filled")
+                    .foregroundColor(.red)
+                    .font(.title2)
+                Text("Threat Intelligence")
+                    .font(.headline)
+                    .foregroundColor(.themeText)
+                Spacer()
+                
+                if threatService.stats.matchesToday > 0 {
+                    Text("\(threatService.stats.matchesToday) threat(s) today")
+                        .font(.caption.bold())
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red.opacity(0.2))
+                        .cornerRadius(6)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(threatService.stats.totalIOCs)")
+                        .font(.title2.bold())
+                        .foregroundColor(.themePurple)
+                    Text("Total IOCs")
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                
+                Spacer()
+                
+                Button {
+                    workspace.selectedView = .threatIntelligence
+                } label: {
+                    Label("Open Threat Intel", systemImage: "arrow.right.circle.fill")
+                        .font(.subheadline.bold())
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+            
+            if threatService.stats.matchesToday > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text("\(threatService.stats.matchesToday) threat match(es) detected today")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                    Text("No threats detected today")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+            }
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+        .onAppear {
+            threatService.loadIOCs()
+        }
+    }
 }
 

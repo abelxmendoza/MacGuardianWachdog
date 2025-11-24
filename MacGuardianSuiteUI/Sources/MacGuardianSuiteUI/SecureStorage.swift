@@ -13,7 +13,7 @@ class SecureStorage {
     /// Store a password securely in Keychain
     func storePassword(_ password: String, forKey key: String) -> Bool {
         // Delete existing item first
-        deletePassword(forKey: key)
+        _ = deletePassword(forKey: key)
         
         guard let passwordData = password.data(using: .utf8) else {
             return false

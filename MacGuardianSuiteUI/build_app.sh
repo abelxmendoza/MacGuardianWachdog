@@ -219,7 +219,7 @@ if [ -f "$RESOURCES_DIR/${ICON_NAME}.icns" ]; then
     if [ "$ICON_SIZE" -gt 0 ]; then
         echo "   ✅ Icon file present: ${ICON_NAME}.icns ($(du -h "$RESOURCES_DIR/${ICON_NAME}.icns" | cut -f1))"
         # Verify Info.plist references correct icon
-        if plutil -extract CFBundleIconFile raw "$INFO_PLIST" 2>/dev/null | grep -q "$ICON_NAME"; then
+        if plutil -extract CFBundleIconFile raw "$CONTENTS_DIR/Info.plist" 2>/dev/null | grep -q "$ICON_NAME"; then
             echo "   ✅ Info.plist references correct icon: $ICON_NAME"
         else
             echo "   ⚠️  Warning: Info.plist may not reference icon correctly"

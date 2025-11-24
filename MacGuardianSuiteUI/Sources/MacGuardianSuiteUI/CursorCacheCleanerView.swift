@@ -590,9 +590,6 @@ func findCursorProjects() -> [CursorProject] {
         
         // Search up to 3 levels deep
         if let enumerator = fileManager.enumerator(atPath: searchPath) {
-            var depth = 0
-            var currentPath = searchPath
-            
             for case let path as String in enumerator {
                 let fullPath = (searchPath as NSString).appendingPathComponent(path)
                 
@@ -674,7 +671,7 @@ func getOpenCursorProjects() -> [String]? {
     let runningApps = workspace.runningApplications
     
     // Find Cursor app
-    guard let cursorApp = runningApps.first(where: { app in
+    guard runningApps.contains(where: { app in
         app.bundleIdentifier?.contains("cursor") == true || 
         app.localizedName?.lowercased().contains("cursor") == true
     }) else {
@@ -737,7 +734,8 @@ func getRecentCursorProjects(from storagePath: String) -> [String]? {
 
 // Try to get open projects via AppleScript
 func getCursorProjectsViaScript() -> [String]? {
-    let script = """
+    // AppleScript to get open projects (currently unused due to macOS sandboxing limitations)
+    _ = """
     tell application "System Events"
         tell process "Cursor"
             try

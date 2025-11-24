@@ -135,6 +135,7 @@ final class WorkspaceState: ObservableObject {
     @Published var showProcessKiller: Bool = false
     @Published var showCacheCleaner: Bool = false
     @Published var showCursorCacheCleaner: Bool = false
+    @Published var showThreatIntelligence: Bool = false
     @Published var reportEmail: String = ""
     @Published var smtpUsername: String = ""
     @Published var smtpPassword: String = "" {
@@ -289,6 +290,11 @@ final class WorkspaceState: ObservableObject {
 enum AppView: String, CaseIterable {
     case dashboard = "Dashboard"
     case tools = "Tools"
+    case threatIntelligence = "Threat Intel"
+    case blueTeam = "Blue Team"
+    case securityAudit = "Security Audit"
+    case remediation = "Remediation"
+    case omegaGuardian = "Omega Guardian"
     case reports = "Reports"
     case history = "History"
     case security = "Security"
@@ -296,6 +302,12 @@ enum AppView: String, CaseIterable {
     
     var icon: String {
         switch self {
+        case .threatIntelligence:
+            return "shield.lefthalf.filled"
+        case .blueTeam: return "shield.lefthalf.filled"
+        case .securityAudit: return "checkmark.shield.fill"
+        case .remediation: return "wrench.and.screwdriver.fill"
+        case .omegaGuardian: return "shield.lefthalf.filled"
         case .dashboard: return "chart.bar.fill"
         case .tools: return "wrench.and.screwdriver.fill"
         case .reports: return "doc.text.fill"
@@ -400,7 +412,7 @@ final class ShellCommandRunner {
             process.currentDirectoryURL = workingDirURL
             
             // Set environment variables
-            var env = ProcessInfo.processInfo.environment
+            var env = Foundation.ProcessInfo.processInfo.environment
             env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
             env["SHELL"] = "/bin/zsh"
             process.environment = env
