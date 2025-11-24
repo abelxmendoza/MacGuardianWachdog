@@ -94,17 +94,32 @@ struct SecurityDashboardView: View {
                             .font(.subheadline)
                             .foregroundColor(.themeTextSecondary)
                         
-                        Text("⚠️ The scan will open in Terminal.app where you'll need to enter your password.")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("⚠️ The scan will open in Terminal.app where you'll need to enter your password.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.clipboard.fill")
+                                    .font(.caption2)
+                                Text("Command will be copied to clipboard automatically")
+                                    .font(.caption2)
+                            }
+                            .foregroundColor(.themeTextSecondary)
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
                         
                         HStack(spacing: 12) {
                             Button {
                                 #if os(macOS)
+                                let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: true)
+                                // Copy to clipboard
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString(command, forType: .string)
                                 TerminalLauncher.shared.openRkhunterScan(updateFirst: true)
                                 #endif
                             } label: {
@@ -120,6 +135,11 @@ struct SecurityDashboardView: View {
                             
                             Button {
                                 #if os(macOS)
+                                let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: false)
+                                // Copy to clipboard
+                                let pasteboard = NSPasteboard.general
+                                pasteboard.clearContents()
+                                pasteboard.setString(command, forType: .string)
                                 TerminalLauncher.shared.openRkhunterScan(updateFirst: false)
                                 #endif
                             } label: {
@@ -132,6 +152,24 @@ struct SecurityDashboardView: View {
                             .buttonStyle(.bordered)
                             .tint(.themePurple)
                         }
+                        
+                        Button {
+                            #if os(macOS)
+                            let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: true)
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(command, forType: .string)
+                            #endif
+                        } label: {
+                            HStack {
+                                Image(systemName: "doc.on.clipboard.fill")
+                                Text("Copy Command to Clipboard")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.themePurple)
                     }
                     .padding()
                     .background(Color.themeDarkGray)

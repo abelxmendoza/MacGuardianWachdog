@@ -13,15 +13,29 @@ class TerminalLauncher {
     ///   - command: The shell command to execute
     ///   - workingDirectory: Optional working directory (defaults to user's home)
     ///   - title: Optional window title
-    func openTerminal(with command: String, workingDirectory: String? = nil, title: String? = nil) {
+    ///   - copyToClipboard: If true, copies command to clipboard before opening Terminal
+    func openTerminal(with command: String, workingDirectory: String? = nil, title: String? = nil, copyToClipboard: Bool = false) {
         let dir = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
+        let fullCommand = "cd '\(dir)' && \(command)"
+        
+        // Copy command to clipboard if requested
+        if copyToClipboard {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(fullCommand, forType: .string)
+        }
+        
+        // Escape single quotes in directory path and command for AppleScript
+        let escapedDir = dir.replacingOccurrences(of: "'", with: "\\'")
+        let escapedCommand = command.replacingOccurrences(of: "'", with: "\\'")
+        let escapedFullCommand = "cd '\(escapedDir)' && \(escapedCommand)"
+        
+        let windowTitle = title ?? "MacGuardian"
         let script = """
         tell application "Terminal"
             activate
-            set newTab to do script "cd '\(dir)' && \(command)"
-            if \(title != nil ? "\"\(title ?? "")\"" : "missing value") is not missing value then
-                set custom title of newTab to "\(title ?? "MacGuardian")"
-            end if
+            set newTab to do script "\(escapedFullCommand)"
+            set custom title of newTab to "\(windowTitle)"
         end tell
         """
         
@@ -31,13 +45,32 @@ class TerminalLauncher {
             
             if let error = error {
                 print("Error opening Terminal: \(error)")
+                // Fallback: try opening Terminal and showing command
+                fallbackOpenTerminal(command: fullCommand, title: windowTitle)
             }
         }
     }
     
-    /// Opens Terminal.app with rkhunter rootkit scan command
+    /// Fallback method that opens Terminal and displays command for easy copy/paste
+    private func fallbackOpenTerminal(command: String, title: String) {
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "echo '🛡️ MacGuardian Command Ready' && echo '' && echo 'Command (already copied to clipboard):' && echo '\(command)' && echo '' && echo 'Press Cmd+V to paste, or type it manually above.' && echo ''"
+            set custom title of front window to "\(title)"
+        end tell
+        """
+        
+        if let appleScript = NSAppleScript(source: script) {
+            var error: NSDictionary?
+            appleScript.executeAndReturnError(&error)
+        }
+    }
+    
+    /// Gets the rkhunter scan command as a string (for display/copying)
     /// - Parameter updateFirst: Whether to update rkhunter database first
-    func openRkhunterScan(updateFirst: Bool = true) {
+    /// - Returns: The command string that will be executed
+    func getRkhunterScanCommand(updateFirst: Bool = true) -> String {
         var command = ""
         
         // Check if rkhunter is installed
@@ -128,7 +161,20 @@ class TerminalLauncher {
             }
         }
         
-        openTerminal(with: command, title: "MacGuardian - Rootkit Scan")
+        return command
+    }
+    
+    /// Opens Terminal.app with rkhunter rootkit scan command
+    /// - Parameter updateFirst: Whether to update rkhunter database first
+    func openRkhunterScan(updateFirst: Bool = true) {
+        let command = getRkhunterScanCommand(updateFirst: updateFirst)
+        
+        // Copy command to clipboard and open Terminal
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(command, forType: .string)
+        
+        openTerminal(with: command, title: "MacGuardian - Rootkit Scan", copyToClipboard: true)
     }
     
     /// Opens Terminal.app with mac_guardian.sh (which includes rkhunter)
@@ -147,7 +193,13 @@ class TerminalLauncher {
             echo ""
             read -p "Press Enter to close..."
             """
-            openTerminal(with: command, workingDirectory: "\(homeDir)/Desktop/MacGuardianProject", title: "MacGuardian Suite")
+            
+            // Copy command to clipboard
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(command, forType: .string)
+            
+            openTerminal(with: command, workingDirectory: "\(homeDir)/Desktop/MacGuardianProject", title: "MacGuardian Suite", copyToClipboard: true)
         } else {
             // Try alternative paths
             let altPaths = [

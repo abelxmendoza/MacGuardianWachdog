@@ -562,6 +562,8 @@ enum HealthStatus {
 
 struct RootkitScanQuickAccess: View {
     @State private var isOpening = false
+    @State private var showCommand = false
+    @State private var commandText = ""
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -580,18 +582,70 @@ struct RootkitScanQuickAccess: View {
                 Spacer()
             }
             
-            Text("⚠️ Rootkit scan requires Terminal and administrator privileges. The scan will open in Terminal.app where you can enter your password.")
-                .font(.caption)
-                .foregroundColor(.orange)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .background(Color.orange.opacity(0.1))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("⚠️ Rootkit scan requires Terminal and administrator privileges.")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.on.clipboard.fill")
+                        .font(.caption2)
+                    Text("Command will be copied to clipboard automatically")
+                        .font(.caption2)
+                }
+                .foregroundColor(.themeTextSecondary)
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(8)
+            
+            if showCommand && !commandText.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Command to run:")
+                            .font(.caption.bold())
+                            .foregroundColor(.themeText)
+                        Spacer()
+                        Button {
+                            #if os(macOS)
+                            let pasteboard = NSPasteboard.general
+                            pasteboard.clearContents()
+                            pasteboard.setString(commandText, forType: .string)
+                            #endif
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.clipboard")
+                                Text("Copy")
+                            }
+                            .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.themePurple)
+                    }
+                    
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        Text(commandText)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.themeText)
+                            .padding(8)
+                            .background(Color.themeBlack)
+                            .cornerRadius(6)
+                    }
+                    .frame(maxHeight: 100)
+                }
+                .padding()
+                .background(Color.themeDarkGray.opacity(0.5))
                 .cornerRadius(8)
+            }
             
             HStack(spacing: 12) {
                 Button {
                     isOpening = true
                     #if os(macOS)
+                    let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: true)
+                    commandText = command
+                    showCommand = true
                     TerminalLauncher.shared.openRkhunterScan(updateFirst: true)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         isOpening = false
