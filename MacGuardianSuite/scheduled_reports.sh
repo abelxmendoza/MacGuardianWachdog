@@ -32,6 +32,26 @@ generate_executive_summary() {
     local report_file="$1"
     local date=$(date '+%Y-%m-%d %H:%M:%S')
     
+    # Try to embed logo as base64
+    local logo_base64=""
+    local logo_paths=(
+        "$SCRIPT_DIR/../MacGuardianSuiteUI/Resources/images/MacGuardianLogo.png"
+        "$SCRIPT_DIR/../MacGuardianSuiteUI/Resources/MacGuardianLogo.png"
+        "$HOME/Desktop/MacGuardianProject/MacGuardianSuiteUI/Resources/images/MacGuardianLogo.png"
+    )
+    
+    for logo_path in "${logo_paths[@]}"; do
+        if [ -f "$logo_path" ]; then
+            if command -v base64 &> /dev/null; then
+                logo_base64=$(base64 -i "$logo_path" 2>/dev/null || base64 "$logo_path" 2>/dev/null || echo "")
+                if [ -n "$logo_base64" ]; then
+                    logo_base64="data:image/png;base64,$logo_base64"
+                    break
+                fi
+            fi
+        fi
+    done
+    
     # Pre-calculate values
     local security_score=$(get_security_score)
     local total_issues=$(get_total_issues)
@@ -47,30 +67,48 @@ generate_executive_summary() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MacGuardian Security Report - $date</title>
+    <title>🛡️ MacGuardian Security Report - $date</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 20px; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { color: #1d1d1f; border-bottom: 3px solid #007aff; padding-bottom: 10px; }
-        h2 { color: #333; margin-top: 30px; }
-        .summary { background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }
-        .metric { display: inline-block; margin: 10px 20px 10px 0; padding: 15px; background: white; border-radius: 5px; min-width: 150px; }
-        .metric-value { font-size: 32px; font-weight: bold; color: #007aff; }
-        .metric-label { color: #666; font-size: 14px; margin-top: 5px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #0D0D12; color: #E0E0E0; }
+        .container { max-width: 1200px; margin: 0 auto; background: #1a1a24; padding: 0; }
+        .omega-header { background: linear-gradient(135deg, #0D0D12 0%, #1a1a24 100%); padding: 40px 30px; border-bottom: 3px solid #8A29F0; display: flex; align-items: center; gap: 20px; }
+        .omega-header-content { flex: 1; }
+        .omega-logo-img { width: 80px; height: 80px; object-fit: contain; }
+        .omega-logo { color: #8A29F0; font-size: 36px; font-weight: bold; margin-bottom: 10px; }
+        .omega-title { color: #FFFFFF; font-size: 32px; font-weight: bold; margin-bottom: 5px; }
+        .omega-subtitle { color: #8A29F0; font-size: 16px; letter-spacing: 3px; margin-top: 15px; font-weight: 600; }
+        .content { padding: 30px; }
+        h1 { color: #FFFFFF; border-bottom: 3px solid #8A29F0; padding-bottom: 10px; margin-top: 0; }
+        h2 { color: #8A29F0; margin-top: 30px; font-size: 24px; }
+        .summary { background: #0D0D12; padding: 25px; border-radius: 8px; margin: 20px 0; border: 1px solid #8A29F0; }
+        .metric { display: inline-block; margin: 10px 20px 10px 0; padding: 20px; background: #0D0D12; border-radius: 8px; min-width: 150px; border: 1px solid #333; }
+        .metric-value { font-size: 36px; font-weight: bold; color: #8A29F0; }
+        .metric-label { color: #888; font-size: 14px; margin-top: 5px; }
         .status-good { color: #34c759; }
         .status-warning { color: #ff9500; }
-        .status-critical { color: #ff3b30; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #f8f9fa; font-weight: 600; }
-        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; }
+        .status-critical { color: #FF2E63; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #0D0D12; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #1a1a24; font-weight: 600; color: #8A29F0; }
+        td { color: #E0E0E0; }
+            .footer { margin-top: 40px; padding: 30px; border-top: 2px solid #8A29F0; background: #0D0D12; text-align: center; color: #888; font-size: 12px; }
+            .footer-brand { color: #8A29F0; font-weight: bold; font-size: 14px; margin-top: 10px; }
+            .omega-footer-logo { width: 40px; height: 40px; margin: 10px auto; object-fit: contain; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🛡️ MacGuardian Security Report</h1>
-        <p><strong>Generated:</strong> $date</p>
-        <p><strong>System:</strong> $(sw_vers -productName) $(sw_vers -productVersion)</p>
+        <div class="omega-header">
+            $(if [ -n "$logo_base64" ]; then echo "<img src=\"$logo_base64\" alt=\"MacGuardian Logo\" class=\"omega-logo-img\" />"; fi)
+            <div class="omega-header-content">
+                <div class="omega-logo">🛡️ MacGuardian Security Report</div>
+                <div class="omega-title">Security Assessment Report</div>
+                <p style="color: #888; margin-top: 10px;"><strong>Generated:</strong> $date</p>
+                <p style="color: #888;"><strong>System:</strong> $(sw_vers -productName) $(sw_vers -productVersion)</p>
+                <div class="omega-subtitle">OMEGA TECHNOLOGIES</div>
+            </div>
+        </div>
+        <div class="content">
         
         <div class="summary">
             <h2>Executive Summary</h2>
@@ -109,9 +147,14 @@ generate_executive_summary() {
         <h2>Recommendations</h2>
         $recommendations
         
+        </div>
         <div class="footer">
-            <p>This report was automatically generated by MacGuardian Suite.</p>
-            <p>For detailed logs, visit: $HOME/.macguardian/</p>
+            $(if [ -n "$logo_base64" ]; then echo "<img src=\"$logo_base64\" alt=\"MacGuardian Logo\" class=\"omega-footer-logo\" />"; fi)
+            <div style="font-size: 18px; margin-bottom: 10px;">🛡️ MacGuardian Security Suite</div>
+            <div class="footer-brand">Powered by OMEGA TECHNOLOGIES</div>
+            <p style="margin-top: 10px;">Security Intelligence Platform</p>
+            <p style="margin-top: 15px; font-size: 11px;">This report was automatically generated by MacGuardian Suite.</p>
+            <p style="font-size: 11px;">For detailed logs, visit: $HOME/.macguardian/</p>
         </div>
     </div>
 </body>

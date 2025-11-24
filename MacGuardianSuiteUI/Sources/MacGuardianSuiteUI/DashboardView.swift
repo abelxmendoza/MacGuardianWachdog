@@ -76,6 +76,9 @@ struct DashboardView: View {
                 OmegaGuardianQuickAccess()
                     .environmentObject(workspace)
                 
+                // Rootkit Scan Quick Access
+                RootkitScanQuickAccess()
+                
                 // System Health
                 SystemHealthCard()
             }
@@ -555,6 +558,84 @@ struct HealthIndicator: View {
 
 enum HealthStatus {
     case good, warning, error
+}
+
+struct RootkitScanQuickAccess: View {
+    @State private var isOpening = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "shield.lefthalf.filled")
+                    .foregroundColor(.themePurple)
+                    .font(.title2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Rootkit Scan")
+                        .font(.headline)
+                        .foregroundColor(.themeText)
+                    Text("Scan for hidden rootkits and malware")
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                Spacer()
+            }
+            
+            Text("⚠️ Rootkit scan requires Terminal and administrator privileges. The scan will open in Terminal.app where you can enter your password.")
+                .font(.caption)
+                .foregroundColor(.orange)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+            
+            HStack(spacing: 12) {
+                Button {
+                    isOpening = true
+                    #if os(macOS)
+                    TerminalLauncher.shared.openRkhunterScan(updateFirst: true)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        isOpening = false
+                    }
+                    #endif
+                } label: {
+                    HStack {
+                        if isOpening {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "terminal.fill")
+                        }
+                        Text("Run Rootkit Scan")
+                            .font(.subheadline.bold())
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.themePurple)
+                .disabled(isOpening)
+                
+                Button {
+                    #if os(macOS)
+                    TerminalLauncher.shared.openMacGuardianScript()
+                    #endif
+                } label: {
+                    HStack {
+                        Image(systemName: "gearshape.fill")
+                        Text("Full Security Scan")
+                            .font(.subheadline)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(.themePurple)
+            }
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+    }
 }
 
 struct OmegaGuardianQuickAccess: View {
