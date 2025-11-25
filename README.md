@@ -2,7 +2,7 @@
 
 # MacGuardian Suite 🛡️
 
-![MacGuardian Logo](MacGuardianSuiteUI/Resources/images/MacGlogo.png)
+![MacGuardian Logo](MacGuardianSuiteUI/Resources/images/MacGuardianLogo.png)
 
 **Comprehensive Security Suite for macOS**
 
@@ -78,6 +78,7 @@ A **native macOS application** built with SwiftUI provides a beautiful, modern i
 
 #### App Features
 
+- **Welcome Screen**: Beautiful animated welcome screen with MacGuardian logo
 - **Visual Dashboard**: Browse all MacGuardian tools organized by category
 - **Live Output Streaming**: See real-time logs as scripts execute
 - **One-Click Execution**: Run any module with a single click
@@ -85,8 +86,16 @@ A **native macOS application** built with SwiftUI provides a beautiful, modern i
 - **Repository Management**: Easy path configuration with Finder integration
 - **Safety Confirmations**: Built-in safeguards for destructive operations
 - **Execution History**: Track all script runs with timestamps and results
-- **Reports Viewer**: Browse and preview security reports
+- **Reports Viewer**: Browse and preview security reports with Omega Technologies branding
 - **Settings Panel**: Configure email, safe mode, and repository path
+- **System Tools**: Process Killer, Cache Cleaner, Cursor Cache Cleaner, Fix App Icons
+- **Progress Feedback**: Real-time progress overlays with step-by-step indicators
+- **Threat Intelligence**: IOC checking, threat feeds, and match tracking
+- **Blue Team Dashboard**: Real-time security monitoring and threat detection
+- **Security Audit Dashboard**: Comprehensive security posture assessment
+- **Remediation Center**: Automated remediation workflows
+- **Omega Guardian Alert System**: Non-spam, high-signal alerting with rule-based processing
+- **Terminal Integration**: One-click terminal launch with pre-filled commands
 
 #### Building the App
 
@@ -99,8 +108,9 @@ cd MacGuardianSuiteUI
 This will:
 - Build the SwiftUI app in release mode
 - Create a proper `.app` bundle
-- Generate the app icon from `MacGlogo.png`
+- Generate the app icon from `MacGuardianLogo.png`
 - Copy all resources to the bundle
+- Set up proper bundle identifiers and metadata
 
 **Method 2: Manual Build**
 ```bash
@@ -167,8 +177,9 @@ Once installed, launch "MacGuardian Suite" from:
 - Ensure you're pointing to the correct directory containing `MacGuardianSuite/`
 
 **App icon not showing:**
-- Ensure `MacGlogo.png` exists in `MacGuardianSuiteUI/Resources/images/`
+- Ensure `MacGuardianLogo.png` exists in `MacGuardianSuiteUI/Resources/images/`
 - Rebuild the app to regenerate the icon
+- Use "Fix App Icons" tool in the System Tools category
 - Log out and back in (or reboot) to refresh macOS icon cache
 
 ### Required macOS Permissions
@@ -181,12 +192,65 @@ See [SECURITY.md](SECURITY.md) for detailed permission requirements.
 
 ## ⚡ New Features (Latest Update)
 
-### 🛡️ Auto-Fix Safety (NEW!)
+### 🎨 Enhanced UI & User Experience
+- **Welcome Screen**: Beautiful animated welcome screen with MacGuardian logo (200px) and smooth entrance animations
+- **Visual Progress Feedback**: Real-time progress overlays during cache cleaning operations
+  - Animated progress bars with percentage display
+  - Step-by-step indicators showing current operation
+  - Completed steps checklist
+  - Prevents confusion about app freezing
+- **System Tools Category**: New prominent category featuring:
+  - **Process Killer**: Safely kill processes and force quit stubborn applications (Cursor, Firefox, Slack, Discord, etc.)
+  - **Cache Cleaner**: Clear browser caches (Safari, Chrome, Firefox, Edge) and system caches with preview
+  - **Cursor Cache Cleaner**: Clear Cursor editor cache for projects, remove/reinstall node_modules
+  - **Fix App Icons**: Fix macOS app icons that aren't displaying correctly
+
+### 🛡️ Security Modules
+- **Threat Intelligence Dashboard**: 
+  - IOC (Indicators of Compromise) checking
+  - Threat feed management
+  - Threat match tracking and statistics
+  - Integration with public threat intelligence feeds
+- **Blue Team Dashboard**: 
+  - Real-time security monitoring
+  - Process analysis and network traffic monitoring
+  - File system anomaly detection
+  - Behavioral analysis and threat hunting
+- **Security Audit Dashboard**: 
+  - Comprehensive security posture assessment
+  - Security score calculation
+  - Pass/fail/warning status for each check
+  - Detailed audit results
+- **Remediation Center**: 
+  - Automated remediation workflows
+  - Preview actions before applying
+  - Impact assessment for each fix
+  - One-click fix application
+
+### 🔔 Omega Guardian Alert System
+- **Non-Spam, High-Signal Alerting**: Rule-based event processing with intelligent throttling
+- **Incident Management**: Track and manage security incidents
+- **Alert Rules**: Customizable rules for IOC matches, process behavior, network anomalies, file modifications
+- **Throttling**: Prevents alert spam with configurable cooldown periods
+- **Incident Feed**: Real-time incident tracking with severity levels
+- **Statistics Dashboard**: Alert and incident statistics
+
+### 🛡️ Auto-Fix Safety
 - **Dry-Run by Default**: All remediation runs in preview mode first
 - **Quarantine System**: Files are moved to quarantine instead of being deleted
 - **Rollback Capability**: JSON manifests with SHA-256 checksums for easy restoration
 - **Confirmation Required**: Dangerous operations require explicit user approval
 - **Manifest Tracking**: All changes tracked with metadata for audit trail
+
+### 🔧 System Integration
+- **Terminal Integration**: One-click terminal launch with pre-filled commands
+  - Rootkit scan (rkhunter) with automatic command copying to clipboard
+  - Pre-filled instructions for easy execution
+- **Email Reporting**: Enhanced email reports with Omega Technologies branding
+  - HTML-optimized email templates
+  - Embedded MacGuardian logo
+  - Dark theme styling
+  - Email client compatibility improvements
 
 ### Performance Monitoring
 - Track execution times for all operations
@@ -200,19 +264,13 @@ See [SECURITY.md](SECURITY.md) for detailed permission requirements.
 - Graceful degradation with fallbacks
 - Self-healing for common issues
 
-### UX Enhancements
-- Progress bars for long operations
-- Step indicators (1/9, 2/9, etc.)
-- Better error messages with solutions
-- Time estimates for operations
-- Spinner animations for indeterminate progress
-
 ### Advanced Reporting
 - Week-over-week comparison reports
 - PDF export capability
 - Custom report templates
 - Executive summaries
 - Template system for easy customization
+- Omega Technologies branding throughout
 
 ---
 
@@ -250,6 +308,8 @@ See [SECURITY.md](SECURITY.md) for detailed permission requirements.
 - **Forensic Analysis**: System snapshots and evidence collection
 - **IOC Database**: Indicators of Compromise tracking
 - **Parallel Processing**: Multi-threaded analysis
+- **Real-Time Dashboard**: SwiftUI dashboard with live metrics and event feed
+- **System Stats**: CPU, memory, disk, and network monitoring
 
 ### 🤖 Mac AI (Intelligent Security Analysis)
 - **Behavioral Anomaly Detection**: ML-powered analysis
@@ -266,6 +326,8 @@ See [SECURITY.md](SECURITY.md) for detailed permission requirements.
 - **SSL/TLS Certificates**: Certificate expiration monitoring
 - **Launch Items**: Persistence mechanism analysis
 - **Lynis Integration**: Optional professional auditing
+- **Security Dashboard**: Visual security score and check status
+- **Detailed Results**: Pass/fail/warning status for each check
 
 ### 🔧 Mac Remediation (Auto-Fix Security Issues)
 - **File Permission Fixes**: Automatically corrects permissions
@@ -275,6 +337,8 @@ See [SECURITY.md](SECURITY.md) for detailed permission requirements.
 - **Launch Item Cleanup**: Removes malicious persistence
 - **Dry-Run Mode**: Preview changes before applying
 - **Backup Creation**: Automatic backups before fixes
+- **Remediation Center UI**: Visual interface for managing and applying fixes
+- **Impact Assessment**: Shows impact level for each remediation action
 
 ### 📊 Scheduled Reports (Phase 1)
 - **Automated Reports**: Daily/weekly/monthly generation
@@ -283,13 +347,19 @@ See [SECURITY.md](SECURITY.md) for detailed permission requirements.
 - **Email Delivery**: Automated report distribution
 - **Security Dashboard**: Visual status overview
 
-### 🔔 Advanced Alerting (Phase 1)
+### 🔔 Advanced Alerting & Omega Guardian System
 - **Custom Alert Rules**: Configurable rule engine
 - **Multiple Severity Levels**: Critical/High/Medium/Low
 - **Action Chains**: notify+log+email+escalate
 - **Cooldown Management**: Prevents alert spam
 - **Alert History**: Complete audit trail
 - **Escalation Support**: Multi-level alerting
+- **Omega Guardian Alert System**: Non-spam, high-signal alerting
+  - Rule-based event processing
+  - Intelligent throttling
+  - Incident management
+  - Real-time incident feed
+  - Alert statistics dashboard
 
 ### 📧 Email Security (Phase 1)
 - **Attachment Scanning**: ClamAV email scanning
@@ -506,12 +576,39 @@ MacGuardianProject/
 ├── MacGuardianSuiteUI/            # Native macOS SwiftUI App
 │   ├── Package.swift              # Swift package manifest
 │   ├── build_app.sh               # App bundle builder
+│   ├── Resources/
+│   │   └── images/
+│   │       └── MacGuardianLogo.png  # App logo
 │   └── Sources/
 │       └── MacGuardianSuiteUI/
 │           ├── MacGuardianSuiteUIApp.swift  # App entry point
 │           ├── ContentView.swift           # Main interface
+│           ├── WelcomeView.swift           # Welcome screen
+│           ├── DashboardView.swift          # Dashboard
 │           ├── ToolDetailView.swift         # Tool execution view
-│           └── AppState.swift               # State management
+│           ├── AppState.swift               # State management
+│           ├── ProcessKillerView.swift     # Process killer UI
+│           ├── CacheCleanerView.swift      # Cache cleaner UI
+│           ├── CursorCacheCleanerView.swift # Cursor cache cleaner
+│           ├── FixAppIconsView.swift        # App icon fixer
+│           ├── ThreatIntelligenceView.swift # Threat intel dashboard
+│           ├── BlueTeam/                    # Blue Team module
+│           │   ├── BlueTeamDashboardView.swift
+│           │   ├── BlueTeamViewModel.swift
+│           │   └── BlueTeamModels.swift
+│           ├── SecurityAudit/               # Security Audit module
+│           │   ├── SecurityAuditView.swift
+│           │   ├── SecurityAuditViewModel.swift
+│           │   └── SecurityAuditModels.swift
+│           ├── Remediation/                 # Remediation module
+│           │   ├── RemediationCenterView.swift
+│           │   ├── RemediationViewModel.swift
+│           │   └── RemediationModels.swift
+│           └── OmegaGuardian/               # Omega Guardian alerts
+│               ├── OmegaGuardianView.swift
+│               ├── AlertEngine.swift
+│               ├── IncidentStore.swift
+│               └── EventPipeline.swift
 └── README.md                      # This file
 ```
 
@@ -636,11 +733,13 @@ Run the verification suite:
 
 ## 📊 Statistics
 
-- **Total Lines of Code**: 12,000+
+- **Total Lines of Code**: 15,000+
 - **Security Checks**: 50+
 - **AI/ML Models**: 5+
 - **Algorithms**: 20+
 - **Scripts/Modules**: 35+
+- **UI Views**: 20+
+- **SwiftUI Components**: 30+
 - **Equivalent Commercial Value**: $10,000-20,000/year (approximate)
 - **Your Cost**: FREE
 
