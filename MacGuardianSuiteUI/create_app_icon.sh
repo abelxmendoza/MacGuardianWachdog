@@ -73,7 +73,7 @@ for size in "${sizes[@]}"; do
     retina_height=$((height * 2))
     if sips -z $retina_width $retina_height "$LOGO_PNG" --out "$ICONSET_DIR/icon_${width}x${width}@2x.png" 2>&1; then
         if [ -f "$ICONSET_DIR/icon_${width}x${width}@2x.png" ]; then
-            echo "  ✓ Generated ${width}x${width} and ${retina_width}x${retina_height} icons"
+    echo "  ✓ Generated ${width}x${width} and ${retina_width}x${retina_height} icons"
         else
             echo "  ⚠️  Warning: Failed to create ${retina_width}x${retina_height} icon"
             ERROR_COUNT=$((ERROR_COUNT + 1))
@@ -131,8 +131,8 @@ if [ -f "$ICNS_FILE" ] && [ -s "$ICNS_FILE" ]; then
     if [ "$ICON_SIZE" -gt 1000 ]; then
         # Verify it's a valid icon file
         if file "$ICNS_FILE" | grep -q "Mac OS X icon\|Apple Icon Image\|Mac OS X icon resource"; then
-            echo "✅ App icon created successfully: $ICNS_FILE"
-            echo "   File size: $(du -h "$ICNS_FILE" | cut -f1)"
+    echo "✅ App icon created successfully: $ICNS_FILE"
+    echo "   File size: $(du -h "$ICNS_FILE" | cut -f1)"
             echo "   File type: $(file "$ICNS_FILE" | cut -d: -f2-)"
         else
             echo "⚠️  Warning: Icon file created but may not be valid"

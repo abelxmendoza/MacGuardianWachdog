@@ -183,8 +183,8 @@ echo "APPL????" > "$CONTENTS_DIR/PkgInfo"
 
 # Set bundle attributes to ensure macOS recognizes it as an app
 if command -v SetFile &> /dev/null; then
-    /usr/bin/SetFile -a B "$APP_BUNDLE" 2>/dev/null || true
-    /usr/bin/SetFile -a C "$APP_BUNDLE" 2>/dev/null || true
+/usr/bin/SetFile -a B "$APP_BUNDLE" 2>/dev/null || true
+/usr/bin/SetFile -a C "$APP_BUNDLE" 2>/dev/null || true
 fi
 
 # Use DeRez/Rez to set icon resource (more reliable method)
@@ -208,7 +208,7 @@ fi
 
 # Convert Info.plist to binary format (more reliable)
 if command -v plutil &> /dev/null; then
-    plutil -convert binary1 "$CONTENTS_DIR/Info.plist" 2>/dev/null || true
+plutil -convert binary1 "$CONTENTS_DIR/Info.plist" 2>/dev/null || true
 fi
 
 # Verify icon is properly set

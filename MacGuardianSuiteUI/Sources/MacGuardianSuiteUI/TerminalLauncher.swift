@@ -18,7 +18,7 @@ class TerminalLauncher {
         let dir = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
         let fullCommand = "cd '\(dir)' && \(command)"
         
-        // Copy command to clipboard if requested
+        // Copy command to clipboard if requested (do this FIRST)
         if copyToClipboard {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
@@ -64,6 +64,60 @@ class TerminalLauncher {
         if let appleScript = NSAppleScript(source: script) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
+        }
+    }
+    
+    /// Gets the simple rkhunter command for copying to clipboard
+    /// - Parameter updateFirst: Whether to update rkhunter database first
+    /// - Returns: The command string ready to paste
+    func getRkhunterScanCommandForClipboard(updateFirst: Bool = true) -> String {
+        // Find rkhunter path
+        let rkhunterPaths = [
+            "/usr/local/bin/rkhunter",
+            "/opt/homebrew/bin/rkhunter",
+            "/usr/bin/rkhunter"
+        ]
+        
+        var rkhunterPath = ""
+        for path in rkhunterPaths {
+            if FileManager.default.fileExists(atPath: path) {
+                rkhunterPath = path
+                break
+            }
+        }
+        
+        if rkhunterPath.isEmpty {
+            // Try to find via which/command
+            let whichProcess = Process()
+            whichProcess.launchPath = "/usr/bin/which"
+            whichProcess.arguments = ["rkhunter"]
+            
+            let pipe = Pipe()
+            whichProcess.standardOutput = pipe
+            whichProcess.standardError = pipe
+            
+            do {
+                try whichProcess.run()
+                whichProcess.waitUntilExit()
+                
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !output.isEmpty {
+                    rkhunterPath = output
+                }
+            } catch {
+                // rkhunter not found
+            }
+        }
+        
+        if rkhunterPath.isEmpty {
+            return "brew install rkhunter"
+        }
+        
+        if updateFirst {
+            return "sudo \(rkhunterPath) --update && sudo \(rkhunterPath) --check --sk"
+        } else {
+            return "sudo \(rkhunterPath) --check --sk"
         }
     }
     
@@ -164,17 +218,52 @@ class TerminalLauncher {
         return command
     }
     
-    /// Opens Terminal.app with rkhunter rootkit scan command
+    /// Opens Terminal.app and copies rkhunter scan command to clipboard
     /// - Parameter updateFirst: Whether to update rkhunter database first
     func openRkhunterScan(updateFirst: Bool = true) {
-        let command = getRkhunterScanCommand(updateFirst: updateFirst)
+        // Get the simple command for clipboard (without echo statements)
+        let clipboardCommand = getRkhunterScanCommandForClipboard(updateFirst: updateFirst)
         
-        // Copy command to clipboard and open Terminal
+        // Copy command to clipboard FIRST
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(command, forType: .string)
+        pasteboard.setString(clipboardCommand, forType: .string)
         
-        openTerminal(with: command, title: "MacGuardian - Rootkit Scan", copyToClipboard: true)
+        // Open Terminal with clear instructions
+        let instructionCommand = """
+        clear
+        echo "🛡️ MacGuardian - Rootkit Scan"
+        echo "================================"
+        echo ""
+        echo "✅ Command copied to clipboard!"
+        echo ""
+        echo "📋 To run the scan:"
+        echo "   1. Press Cmd+V (or right-click → Paste) to paste"
+        echo "   2. Press Enter to execute"
+        echo ""
+        echo "⚠️  Note: This command requires sudo privileges"
+        echo "   You will be prompted for your password"
+        echo ""
+        echo "────────────────────────────────────────"
+        echo ""
+        echo "Command (ready to paste):"
+        echo "  \(clipboardCommand)"
+        echo ""
+        echo "────────────────────────────────────────"
+        echo ""
+        echo "💡 Tip: The command is already in your clipboard!"
+        echo "   Just press Cmd+V and Enter to run it."
+        echo ""
+        """
+        
+        // Open Terminal and ensure command is copied
+        openTerminal(with: instructionCommand, title: "MacGuardian - Rootkit Scan", copyToClipboard: true)
+        
+        // Ensure clipboard is set (double-check)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            pasteboard.clearContents()
+            pasteboard.setString(clipboardCommand, forType: .string)
+        }
     }
     
     /// Opens Terminal.app with mac_guardian.sh (which includes rkhunter)

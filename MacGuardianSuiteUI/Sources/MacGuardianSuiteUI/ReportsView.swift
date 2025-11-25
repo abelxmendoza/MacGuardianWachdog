@@ -14,7 +14,7 @@ struct ReportsView: View {
         HSplitView {
             // Reports List
             VStack(alignment: .leading, spacing: 0) {
-            HStack {
+                HStack {
                 Image(systemName: "shield.lefthalf.filled")
                     .font(.title2)
                     .foregroundColor(Color(red: 0.54, green: 0.16, blue: 0.95))
@@ -26,16 +26,16 @@ struct ReportsView: View {
                         .font(.caption2)
                         .foregroundColor(Color(red: 0.54, green: 0.16, blue: 0.95))
                 }
-                Spacer()
-                Button {
-                    refreshReports()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
+                    Spacer()
+                    Button {
+                        refreshReports()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
                 .tint(Color(red: 0.54, green: 0.16, blue: 0.95))
-            }
-            .padding()
+                }
+                .padding()
                 
                 SearchField(text: $searchText, placeholder: "Search reports...")
                     .padding(.horizontal)
@@ -128,18 +128,18 @@ struct ReportPreviewView: View {
             VStack(spacing: 0) {
                 HStack(spacing: 16) {
                     LogoView(size: 60)
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 4) {
                         Text("🛡️ MacGuardian Security Report")
                             .font(.title2.bold())
                             .foregroundColor(.themeText)
-                        Text(report.name)
+                    Text(report.name)
                             .font(.subheadline)
                             .foregroundColor(.themeTextSecondary)
-                        Text(formatDate(report.date))
-                            .font(.caption)
-                            .foregroundColor(.themeTextSecondary)
-                    }
-                    Spacer()
+                    Text(formatDate(report.date))
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
                         Text("OMEGA TECHNOLOGIES")
                             .font(.caption.bold())
@@ -224,11 +224,11 @@ struct ReportPreviewView: View {
                         .background(Color.themeDarkGray.opacity(0.5))
                         .cornerRadius(8)
                         
-                        Text(textContent.isEmpty ? "Loading..." : textContent)
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundColor(.themeText)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(textContent.isEmpty ? "Loading..." : textContent)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.themeText)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         
                         // Omega Technologies Footer
                         VStack(spacing: 8) {

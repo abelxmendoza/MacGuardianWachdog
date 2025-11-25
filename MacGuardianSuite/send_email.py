@@ -169,6 +169,7 @@ def main() -> None:
     parser.add_argument('subject', help='Email subject')
     parser.add_argument('body', help='Email body')
     parser.add_argument('--html', help='Optional raw HTML body (will override theme wrapper)')
+    parser.add_argument('--html-file', help='Path to HTML file to use as body')
     parser.add_argument('--attachment', help='Path to attachment file')
     parser.add_argument('--smtp-server', default='smtp.gmail.com', help='SMTP server')
     parser.add_argument('--smtp-port', type=int, default=587, help='SMTP port')
@@ -184,11 +185,16 @@ def main() -> None:
         'password': args.password,
     }
 
+    # Read HTML from file if provided
+    html_body = args.html
+    if args.html_file and Path(args.html_file).exists():
+        html_body = Path(args.html_file).read_text()
+    
     success = send_email(
         args.to_email,
         args.subject,
         args.body,
-        html_body=args.html,
+        html_body=html_body,
         attachment_path=args.attachment,
         smtp_config=smtp_config,
     )

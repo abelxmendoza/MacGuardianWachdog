@@ -791,6 +791,48 @@ extension SuiteCategory {
     static func defaultCategories() -> [SuiteCategory] {
         return [
             SuiteCategory(
+                name: "System Tools",
+                description: "Quick access to system management tools with beautiful UIs.",
+                tools: [
+                    SuiteTool(
+                        name: "Process Killer",
+                        description: "Safely kill processes and force quit applications that won't close normally. Perfect for Cursor, Firefox, Slack, Discord, and other stubborn apps.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .destructive,
+                        destructiveOperations: ["Can terminate running applications", "Force quit may cause data loss"],
+                        executionMode: .ui
+                    ),
+                    SuiteTool(
+                        name: "Cache Cleaner",
+                        description: "Safely clear browser caches (Safari, Chrome, Firefox, Edge) and system caches to free up disk space. Preview before cleaning.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .caution,
+                        destructiveOperations: ["Cleans browser cache files", "May delete cookies and browsing history if selected", "Cleans system cache files"],
+                        executionMode: .ui
+                    ),
+                    SuiteTool(
+                        name: "Cursor Cache Cleaner",
+                        description: "Clear Cursor editor cache for your projects. Fixes cache issues and frees up disk space. Scans for projects automatically.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .safe,
+                        destructiveOperations: ["Cleans Cursor project cache files", "Cleans Cursor global cache"],
+                        executionMode: .ui
+                    ),
+                    SuiteTool(
+                        name: "Fix App Icons",
+                        description: "Fix macOS app icons that aren't displaying correctly. Clears icon cache and restarts Dock.",
+                        relativePath: "", // This is a UI-only tool
+                        kind: .shell,
+                        safetyLevel: .safe,
+                        destructiveOperations: ["Clears macOS icon cache", "Restarts Dock"],
+                        executionMode: .ui
+                    )
+                ]
+            ),
+            SuiteCategory(
                 name: "Mac Suite",
                 description: "Main entry point combining all modules.",
                 tools: [
@@ -846,33 +888,6 @@ extension SuiteCategory {
                             "Can modify system permissions",
                             "Can quarantine files"
                         ]
-                    ),
-                    SuiteTool(
-                        name: "Process Killer",
-                        description: "Safely kill processes and force quit applications that won't close normally. Perfect for Cursor, Firefox, Slack, Discord, and other stubborn apps.",
-                        relativePath: "", // This is a UI-only tool
-                        kind: .shell,
-                        safetyLevel: .destructive,
-                        destructiveOperations: ["Can terminate running applications", "Force quit may cause data loss"],
-                        executionMode: .ui
-                    ),
-                    SuiteTool(
-                        name: "Cache Cleaner",
-                        description: "Safely clear browser caches (Safari, Chrome, Firefox, Edge) and system caches to free up disk space. Preview before cleaning.",
-                        relativePath: "", // This is a UI-only tool
-                        kind: .shell,
-                        safetyLevel: .caution,
-                        destructiveOperations: ["Cleans browser cache files", "May delete cookies and browsing history if selected", "Cleans system cache files"],
-                        executionMode: .ui
-                    ),
-                    SuiteTool(
-                        name: "Cursor Cache Cleaner",
-                        description: "Clear Cursor editor cache for your projects. Fixes cache issues and frees up disk space. Scans for projects automatically.",
-                        relativePath: "", // This is a UI-only tool
-                        kind: .shell,
-                        safetyLevel: .safe,
-                        destructiveOperations: ["Cleans Cursor project cache files", "Cleans Cursor global cache"],
-                        executionMode: .ui
                     )
                 ]
             ),

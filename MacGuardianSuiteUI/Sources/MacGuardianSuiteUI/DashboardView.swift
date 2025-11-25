@@ -643,10 +643,19 @@ struct RootkitScanQuickAccess: View {
                 Button {
                     isOpening = true
                     #if os(macOS)
-                    let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: true)
+                    // Get command and copy to clipboard, then open Terminal
+                    let command = TerminalLauncher.shared.getRkhunterScanCommandForClipboard(updateFirst: true)
                     commandText = command
                     showCommand = true
+                    
+                    // Copy to clipboard
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(command, forType: .string)
+                    
+                    // Open Terminal with instructions
                     TerminalLauncher.shared.openRkhunterScan(updateFirst: true)
+                    
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         isOpening = false
                     }
@@ -659,7 +668,7 @@ struct RootkitScanQuickAccess: View {
                         } else {
                             Image(systemName: "terminal.fill")
                         }
-                        Text("Run Rootkit Scan")
+                        Text("Open Terminal & Copy Command")
                             .font(.subheadline.bold())
                     }
                     .frame(maxWidth: .infinity)

@@ -115,17 +115,13 @@ struct SecurityDashboardView: View {
                         HStack(spacing: 12) {
                             Button {
                                 #if os(macOS)
-                                let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: true)
-                                // Copy to clipboard
-                                let pasteboard = NSPasteboard.general
-                                pasteboard.clearContents()
-                                pasteboard.setString(command, forType: .string)
+                                // Open Terminal and copy command to clipboard
                                 TerminalLauncher.shared.openRkhunterScan(updateFirst: true)
                                 #endif
                             } label: {
                                 HStack {
                                     Image(systemName: "terminal.fill")
-                                    Text("Run Rootkit Scan")
+                                    Text("Open Terminal & Copy Command")
                                         .font(.subheadline.bold())
                                 }
                                 .frame(maxWidth: .infinity)
@@ -135,17 +131,13 @@ struct SecurityDashboardView: View {
                             
                             Button {
                                 #if os(macOS)
-                                let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: false)
-                                // Copy to clipboard
-                                let pasteboard = NSPasteboard.general
-                                pasteboard.clearContents()
-                                pasteboard.setString(command, forType: .string)
+                                // Open Terminal and copy scan-only command
                                 TerminalLauncher.shared.openRkhunterScan(updateFirst: false)
                                 #endif
                             } label: {
                                 HStack {
                                     Image(systemName: "arrow.clockwise")
-                                    Text("Scan Only")
+                                    Text("Scan Only (No Update)")
                                         .font(.subheadline)
                                 }
                             }
@@ -155,15 +147,19 @@ struct SecurityDashboardView: View {
                         
                         Button {
                             #if os(macOS)
-                            let command = TerminalLauncher.shared.getRkhunterScanCommand(updateFirst: true)
+                            // Get the simple command (without echo statements) for clipboard
+                            let command = TerminalLauncher.shared.getRkhunterScanCommandForClipboard(updateFirst: true)
                             let pasteboard = NSPasteboard.general
                             pasteboard.clearContents()
                             pasteboard.setString(command, forType: .string)
+                            
+                            // Also open Terminal to show the command
+                            TerminalLauncher.shared.openRkhunterScan(updateFirst: true)
                             #endif
                         } label: {
                             HStack {
                                 Image(systemName: "doc.on.clipboard.fill")
-                                Text("Copy Command to Clipboard")
+                                Text("Copy & Open Terminal")
                                     .font(.caption)
                             }
                             .frame(maxWidth: .infinity)
