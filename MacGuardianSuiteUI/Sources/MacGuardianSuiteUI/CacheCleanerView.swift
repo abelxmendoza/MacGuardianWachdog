@@ -18,6 +18,9 @@ struct CacheCleanerView: View {
     @State private var cleaningResult: CleaningResult?
     @State private var cacheSizes: [String: String] = [:]
     @State private var totalSize: String = "Calculating..."
+    @State private var currentCleaningStep: String = ""
+    @State private var cleaningProgress: Double = 0.0
+    @State private var completedSteps: [String] = []
     
     let availableBrowsers = ["Safari", "Chrome", "Firefox", "Edge"]
     
@@ -228,6 +231,16 @@ struct CacheCleanerView: View {
             .background(Color.themeDarkGray)
         }
         .background(Color.themeBlack)
+        .overlay {
+            // Progress overlay
+            if isLoading {
+                CleaningProgressOverlay(
+                    currentStep: currentCleaningStep,
+                    progress: cleaningProgress,
+                    completedSteps: completedSteps
+                )
+            }
+        }
         .onAppear {
             calculateCacheSizes()
         }
@@ -251,12 +264,23 @@ struct CacheCleanerView: View {
     
     private func calculateCacheSizes() {
         isLoading = true
+        currentCleaningStep = "Calculating cache sizes..."
+        cleaningProgress = 0.0
+        
         DispatchQueue.global(qos: .userInitiated).async {
             var sizes: [String: String] = [:]
             var totalBytes: Int64 = 0
+            let totalChecks = availableBrowsers.count + (cleanSystemCache ? 1 : 0) + (cleanHomebrewCache ? 1 : 0)
+            var currentCheck = 0
             
             // Calculate browser cache sizes for all browsers (to show sizes even if not selected)
             for browser in availableBrowsers {
+                currentCheck += 1
+                DispatchQueue.main.async {
+                    currentCleaningStep = "Scanning \(browser)..."
+                    cleaningProgress = Double(currentCheck) / Double(totalChecks)
+                }
+                
                 let size = getBrowserCacheSize(browser: browser)
                 sizes[browser] = size.formatted
                 // Only add to total if selected
@@ -267,6 +291,12 @@ struct CacheCleanerView: View {
             
             // Calculate system cache size
             if cleanSystemCache {
+                currentCheck += 1
+                DispatchQueue.main.async {
+                    currentCleaningStep = "Scanning system cache..."
+                    cleaningProgress = Double(currentCheck) / Double(totalChecks)
+                }
+                
                 let systemSize = getSystemCacheSize()
                 sizes["System"] = systemSize.formatted
                 totalBytes += systemSize.bytes
@@ -274,6 +304,12 @@ struct CacheCleanerView: View {
             
             // Calculate Homebrew cache size
             if cleanHomebrewCache {
+                currentCheck += 1
+                DispatchQueue.main.async {
+                    currentCleaningStep = "Scanning Homebrew cache..."
+                    cleaningProgress = Double(currentCheck) / Double(totalChecks)
+                }
+                
                 let brewSize = getHomebrewCacheSize()
                 sizes["Homebrew"] = brewSize.formatted
                 totalBytes += brewSize.bytes
@@ -283,6 +319,8 @@ struct CacheCleanerView: View {
                 cacheSizes = sizes
                 totalSize = formatBytes(totalBytes)
                 isLoading = false
+                currentCleaningStep = ""
+                cleaningProgress = 0.0
             }
         }
     }
@@ -314,13 +352,34 @@ struct CacheCleanerView: View {
     
     private func performClean() {
         isLoading = true
+        cleaningProgress = 0.0
+        completedSteps = []
+        currentCleaningStep = "Initializing..."
+        
+        // Calculate total steps
+        var totalSteps = 0
+        if !selectedBrowsers.isEmpty { totalSteps += 1 }
+        if cleanSystemCache { totalSteps += 1 }
+        if cleanHomebrewCache { totalSteps += 1 }
+        
+        guard totalSteps > 0 else {
+            isLoading = false
+            return
+        }
         
         DispatchQueue.global(qos: .userInitiated).async {
             var results: [String] = []
             var errors: [String] = []
+            var currentStep = 0
             
             // Clean browsers
             if !selectedBrowsers.isEmpty {
+                currentStep += 1
+                DispatchQueue.main.async {
+                    currentCleaningStep = "Cleaning browser caches..."
+                    cleaningProgress = Double(currentStep) / Double(totalSteps)
+                }
+                
                 let browsers = selectedBrowsers.joined(separator: ",").lowercased()
                 var args: [String] = []
                 
@@ -345,6 +404,9 @@ struct CacheCleanerView: View {
                 let browserResult = runBrowserCleanup(args: args, isPreview: false)
                 if browserResult.success {
                     results.append("Browser caches cleaned")
+                    DispatchQueue.main.async {
+                        completedSteps.append("Browser caches cleaned")
+                    }
                 } else {
                     errors.append(browserResult.message)
                 }
@@ -352,9 +414,18 @@ struct CacheCleanerView: View {
             
             // Clean system cache
             if cleanSystemCache {
+                currentStep += 1
+                DispatchQueue.main.async {
+                    currentCleaningStep = "Cleaning system cache..."
+                    cleaningProgress = Double(currentStep) / Double(totalSteps)
+                }
+                
                 let systemResult = cleanSystemCaches()
                 if systemResult.success {
                     results.append("System cache cleaned")
+                    DispatchQueue.main.async {
+                        completedSteps.append("System cache cleaned")
+                    }
                 } else {
                     errors.append(systemResult.message)
                 }
@@ -362,23 +433,47 @@ struct CacheCleanerView: View {
             
             // Clean Homebrew cache
             if cleanHomebrewCache {
+                currentStep += 1
+                DispatchQueue.main.async {
+                    currentCleaningStep = "Cleaning Homebrew cache..."
+                    cleaningProgress = Double(currentStep) / Double(totalSteps)
+                }
+                
                 let brewResult = performHomebrewCleanup()
                 if brewResult.success {
                     results.append("Homebrew cache cleaned")
+                    DispatchQueue.main.async {
+                        completedSteps.append("Homebrew cache cleaned")
+                    }
+                } else if brewResult.message == "Homebrew not installed" {
+                    // Homebrew not installed is not an error, just informational
+                    results.append("Homebrew: Not installed (skipped)")
+                    DispatchQueue.main.async {
+                        completedSteps.append("Homebrew: Not installed (skipped)")
+                    }
                 } else {
-                    errors.append(brewResult.message)
+                    errors.append("Homebrew: \(brewResult.message)")
                 }
             }
             
             DispatchQueue.main.async {
-                isLoading = false
-                let message: String
-                if errors.isEmpty {
-                    message = "✅ Successfully cleaned:\n\n" + results.joined(separator: "\n")
-                } else {
-                    message = "⚠️ Partial success:\n\n" + results.joined(separator: "\n") + "\n\nErrors:\n" + errors.joined(separator: "\n")
+                currentCleaningStep = "Finishing up..."
+                cleaningProgress = 1.0
+                
+                // Small delay to show completion
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isLoading = false
+                    let message: String
+                    if errors.isEmpty {
+                        message = "✅ Successfully cleaned:\n\n" + results.joined(separator: "\n")
+                    } else {
+                        message = "⚠️ Partial success:\n\n" + results.joined(separator: "\n") + "\n\nErrors:\n" + errors.joined(separator: "\n")
+                    }
+                    cleaningResult = CleaningResult(success: errors.isEmpty, message: message)
+                    currentCleaningStep = ""
+                    cleaningProgress = 0.0
+                    completedSteps = []
                 }
-                cleaningResult = CleaningResult(success: errors.isEmpty, message: message)
             }
         }
     }
@@ -624,4 +719,159 @@ func performHomebrewCleanup() -> (success: Bool, message: String) {
     }
 }
 #endif
+
+// MARK: - Cleaning Progress Overlay
+struct CleaningProgressOverlay: View {
+    let currentStep: String
+    let progress: Double
+    let completedSteps: [String]
+    
+    var body: some View {
+        ZStack {
+            // Semi-transparent background
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+                .blur(radius: 2)
+            
+            // Progress card
+            VStack(spacing: 24) {
+                // Animated icon
+                ZStack {
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [.themePurple.opacity(0.3), .themePurpleLight.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 4
+                        )
+                        .frame(width: 100, height: 100)
+                    
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.themePurple, .themePurpleLight],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .symbolEffect(.pulse, options: .repeating)
+                }
+                
+                // Title
+                Text("Cleaning Cache")
+                    .font(.title.bold())
+                    .foregroundColor(.themeText)
+                
+                // Current step
+                if !currentStep.isEmpty {
+                    HStack(spacing: 12) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .scaleEffect(0.8)
+                            .tint(.themePurple)
+                        
+                        Text(currentStep)
+                            .font(.headline)
+                            .foregroundColor(.themeText)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.themeDarkGray.opacity(0.8))
+                    )
+                }
+                
+                // Progress bar
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Progress")
+                            .font(.subheadline)
+                            .foregroundColor(.themeTextSecondary)
+                        Spacer()
+                        Text("\(Int(progress * 100))%")
+                            .font(.subheadline.bold())
+                            .foregroundColor(.themePurple)
+                    }
+                    
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.themeDarkGray.opacity(0.5))
+                                .frame(height: 12)
+                            
+                            // Progress fill
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.themePurple, .themePurpleLight],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * progress, height: 12)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: progress)
+                        }
+                    }
+                    .frame(height: 12)
+                }
+                .padding(.horizontal, 24)
+                
+                // Completed steps list
+                if !completedSteps.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Completed:")
+                            .font(.caption.bold())
+                            .foregroundColor(.themeTextSecondary)
+                            .textCase(.uppercase)
+                        
+                        ForEach(completedSteps, id: \.self) { step in
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                                Text(step)
+                                    .font(.caption)
+                                    .foregroundColor(.themeTextSecondary)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.themeDarkGray.opacity(0.5))
+                    )
+                }
+                
+                // Info text
+                Text("Please wait while we clean your caches...")
+                    .font(.caption)
+                    .foregroundColor(.themeTextSecondary.opacity(0.7))
+            }
+            .padding(32)
+            .frame(maxWidth: 500)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.themeDarkGray)
+                    .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.themePurple.opacity(0.5), .themePurpleDark.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+            )
+        }
+    }
+}
 

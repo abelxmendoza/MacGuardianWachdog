@@ -581,7 +581,9 @@ main() {
         # Clean only specified browsers
         IFS=',' read -ra BROWSER_LIST <<< "$BROWSERS"
         for browser in "${BROWSER_LIST[@]}"; do
-            case "${browser,,}" in
+            # Convert to lowercase (compatible with macOS bash 3.2)
+            browser_lower=$(echo "$browser" | tr '[:upper:]' '[:lower:]')
+            case "$browser_lower" in
                 safari)
                     clean_safari
                     ;;
