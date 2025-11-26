@@ -2,6 +2,24 @@
 .DS_Store
 .AppleDouble
 .LSOverride
+._*
+
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+*.xcworkspace/*
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+*.xcuserdata/
+*.xcscmblueprint
+build/
+DerivedData/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
 
 # Python
 __pycache__/
@@ -9,37 +27,58 @@ __pycache__/
 *$py.class
 *.so
 .Python
-*.egg-info/
-dist/
-build/
+venv/
+env/
+ENV/
 
-# Logs and temporary files
-*.log
-*.tmp
-*.swp
-*~
-
-# Swift Package Manager
-.build/
-
-# MacGuardian runtime files
+# MacGuardian specific
 .macguardian/
-.mac_watchdog_*
+*.log
+*.jsonl
+*.json.bak
+*.tmp
+
+# Test artifacts
+test-results/
+coverage/
+*.coverage
 
 # IDE
 .vscode/
 .idea/
-*.sublime-*
+*.swp
+*.swo
+*~
 
-# Backup files
+# Secrets and credentials
+*.pem
+*.key
+*.cert
+*.p12
+secrets.yaml
+.env
+.env.local
+
+# Build artifacts
+*.dmg
+*.pkg
+*.zip
+*.tar.gz
+release/
+
+# Temporary files
+*.tmp
+*.temp
 *.bak
 *.backup
 
-# Release artifacts
-release/
-*.tar.gz
-*.zip
-*.pkg
-*.sha256
-*.p12
-certificate.p12
+# Logs
+logs/
+*.log
+
+# Event files (can be large)
+events/
+*.event
+
+# Baselines (user-specific)
+baselines/
