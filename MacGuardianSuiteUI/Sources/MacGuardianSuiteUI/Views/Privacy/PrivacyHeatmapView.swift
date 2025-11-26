@@ -259,7 +259,11 @@ struct PrivacyHeatmapView: View {
                 
                 if let files = try? FileManager.default.contentsOfDirectory(at: auditDir, includingPropertiesForKeys: [.creationDateKey]),
                    let latestFile = files.filter({ $0.lastPathComponent.contains("tcc_audit") })
-                       .sorted(by: { ($0.creationDate ?? Date.distantPast) > ($1.creationDate ?? Date.distantPast) })
+                       .sorted(by: { 
+                      let date0 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      let date1 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      return date0 > date1
+                  })
                        .first,
                    let data = try? Data(contentsOf: latestFile),
                    let privacy = try? JSONDecoder().decode(TCCPrivacyData.self, from: data) {
@@ -286,7 +290,11 @@ struct PrivacyHeatmapView: View {
         
         guard let files = try? FileManager.default.contentsOfDirectory(at: auditDir, includingPropertiesForKeys: [.creationDateKey]),
               let latestFile = files.filter({ $0.lastPathComponent.contains("tcc_audit") })
-                  .sorted(by: { ($0.creationDate ?? Date.distantPast) > ($1.creationDate ?? Date.distantPast) })
+                  .sorted(by: { 
+                      let date0 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      let date1 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      return date0 > date1
+                  })
                   .first,
               let data = try? Data(contentsOf: latestFile),
               let privacy = try? JSONDecoder().decode(TCCPrivacyData.self, from: data) else {
