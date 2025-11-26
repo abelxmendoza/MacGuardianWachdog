@@ -1,11 +1,20 @@
-#!/bin/zsh
+#!/bin/bash
 
 # ===============================
 # Network Watcher
 # Real-time network anomaly detection
+# Event Spec v1.0.0 compliant
 # ===============================
 
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
 source "$SCRIPT_DIR/event_writer.sh" 2>/dev/null || true
 
 # Threat intelligence database
@@ -54,22 +63,43 @@ function detect_network_anomalies() {
         # Check suspicious ports
         for sus_port in "${SUSPICIOUS_PORTS[@]}"; do
             if [ "$port" = "$sus_port" ]; then
-                write_event "network" "high" "Connection to suspicious port detected" "{\"port\": $port, \"remote\": \"$remote\", \"process\": \"$process\"}"
+                # Extract PID if available
+                local pid=$(echo "$line" | awk '{print $2}' 2>/dev/null || echo "")
+                local context_json="{\"local_port\": $port, \"remote_ip\": \"$remote\", \"process_name\": \"$process\""
+                if [ -n "$pid" ] && validate_int "$pid" 1 999999; then
+                    context_json="$context_json, \"pid\": $pid"
+                fi
+                context_json="$context_json, \"protocol\": \"tcp\", \"connection_state\": \"ESTABLISHED\", \"suspicious_pattern\": \"known_suspicious_port\"}"
+                write_event "network_connection" "high" "network_watcher" "$context_json"
+                log_watcher "network_watcher" "WARNING" "Suspicious port connection: $process -> $remote:$port"
             fi
         done
         
         # Check threat intelligence database
-        if [ -f "$THREAT_INTEL_DB" ] && command -v jq &> /dev/null && [ -n "$remote" ]; then
-            local threat_match=$(jq -r ".[] | select(.type == \"ip\" and .value == \"$remote\") | .value" "$THREAT_INTEL_DB" 2>/dev/null | head -1)
-            if [ -n "$threat_match" ]; then
-                local threat_source=$(jq -r ".[] | select(.type == \"ip\" and .value == \"$remote\") | .source" "$THREAT_INTEL_DB" 2>/dev/null | head -1)
-                write_event "network" "critical" "Connection to known malicious IP detected" "{\"ip\": \"$remote\", \"port\": \"$port\", \"process\": \"$process\", \"threat_source\": \"$threat_source\"}"
+        if [ -f "$THREAT_INTEL_DB" ] && [ -n "$remote" ]; then
+            # Simple grep-based threat intel check (no jq dependency)
+            if grep -q "\"$remote\"" "$THREAT_INTEL_DB" 2>/dev/null; then
+                local pid=$(echo "$line" | awk '{print $2}' 2>/dev/null || echo "")
+                local context_json="{\"remote_ip\": \"$remote\", \"remote_port\": $port, \"process_name\": \"$process\", \"protocol\": \"tcp\", \"connection_state\": \"ESTABLISHED\", \"threat_intel_match\": true"
+                if [ -n "$pid" ] && validate_int "$pid" 1 999999; then
+                    context_json="$context_json, \"pid\": $pid"
+                fi
+                context_json="$context_json}"
+                write_event "network_connection" "critical" "network_watcher" "$context_json"
+                log_watcher "network_watcher" "CRITICAL" "Threat intel match: $process -> $remote:$port"
             fi
         fi
         
         # Check for connections to private/internal IPs from suspicious processes
         if echo "$remote" | grep -qE '^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)' && echo "$process" | grep -qiE "(curl|nc|python|sh|bash)"; then
-            write_event "network" "medium" "Suspicious internal network connection" "{\"remote\": \"$remote\", \"port\": \"$port\", \"process\": \"$process\"}"
+            local pid=$(echo "$line" | awk '{print $2}' 2>/dev/null || echo "")
+            local context_json="{\"remote_ip\": \"$remote\", \"remote_port\": $port, \"process_name\": \"$process\", \"protocol\": \"tcp\", \"connection_state\": \"ESTABLISHED\", \"suspicious_pattern\": \"internal_network_from_script\""
+            if [ -n "$pid" ] && validate_int "$pid" 1 999999; then
+                context_json="$context_json, \"pid\": $pid"
+            fi
+            context_json="$context_json}"
+            write_event "network_connection" "medium" "network_watcher" "$context_json"
+            log_watcher "network_watcher" "INFO" "Suspicious internal connection: $process -> $remote:$port"
         fi
     done
     
@@ -87,11 +117,16 @@ function detect_network_anomalies() {
                     continue
                 fi
                 
-                write_event "network" "medium" "Unexpected listening port detected" "{\"port\": $listen_port, \"process\": \"$listen_process\"}"
+                local context_json="{\"local_port\": $listen_port, \"process_name\": \"$listen_process\", \"protocol\": \"tcp\", \"connection_state\": \"LISTEN\", \"suspicious_pattern\": \"unexpected_listening_port\"}"
+                write_event "network_connection" "medium" "network_watcher" "$context_json"
+                log_watcher "network_watcher" "INFO" "Unexpected listening port: $listen_process on $listen_port"
             fi
         done
     fi
 }
+
+# Check system compatibility on load
+check_system_compatibility 2>/dev/null || true
 
 export -f detect_network_anomalies
 

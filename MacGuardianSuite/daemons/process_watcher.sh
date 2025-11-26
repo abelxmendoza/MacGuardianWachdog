@@ -1,11 +1,20 @@
-#!/bin/zsh
+#!/bin/bash
 
 # ===============================
 # Process Watcher
 # Real-time process anomaly detection
+# Event Spec v1.0.0 compliant
 # ===============================
 
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
 source "$SCRIPT_DIR/event_writer.sh" 2>/dev/null || true
 
 # Baseline for process count
@@ -44,7 +53,9 @@ function detect_suspicious_processes() {
     fi
     
     if [ ${percent_change#-} -gt 50 ]; then
-        write_event "process" "medium" "Significant process count change detected" "{\"current\": $process_count, \"baseline\": $baseline_count, \"change_percent\": $percent_change}"
+        local context_json="{\"process_count\": $process_count, \"baseline_count\": $baseline_count, \"change_percent\": $percent_change, \"anomaly_type\": \"process_count_spike\"}"
+        write_event "process_anomaly" "medium" "process_watcher" "$context_json"
+        log_watcher "process_watcher" "WARNING" "Process count spike detected: $process_count (baseline: $baseline_count)"
     fi
     
     # Check for high CPU processes (using awk for portability)
@@ -55,7 +66,11 @@ function detect_suspicious_processes() {
         }
     }' | while IFS='|' read -r pid cpu comm args; do
         if [ -n "$pid" ] && [ -n "$cpu" ]; then
-            write_event "process" "high" "High CPU process detected" "{\"pid\": $pid, \"cpu_percent\": $cpu, \"process\": \"$comm\", \"args\": \"$args\"}"
+            # Escape args for JSON
+            local escaped_args=$(echo "$args" | sed 's/"/\\"/g' | head -c 200)
+            local context_json="{\"pid\": $pid, \"cpu_percent\": $cpu, \"process_name\": \"$comm\", \"command\": \"$escaped_args\", \"anomaly_type\": \"high_cpu\"}"
+            write_event "process_anomaly" "high" "process_watcher" "$context_json"
+            log_watcher "process_watcher" "WARNING" "High CPU process: $comm (PID: $pid, CPU: $cpu%)"
         fi
     done
     
@@ -71,17 +86,25 @@ function detect_suspicious_processes() {
         }
     }' | while IFS='|' read -r pid comm args; do
         if [ -n "$pid" ] && [ -n "$comm" ]; then
-            write_event "process" "medium" "Potential suspicious process detected" "{\"pid\": $pid, \"process\": \"$comm\", \"args\": \"$args\"}"
+            local escaped_args=$(echo "$args" | sed 's/"/\\"/g' | head -c 200)
+            local context_json="{\"pid\": $pid, \"process_name\": \"$comm\", \"command\": \"$escaped_args\", \"anomaly_type\": \"suspicious_pattern\"}"
+            write_event "process_anomaly" "medium" "process_watcher" "$context_json"
+            log_watcher "process_watcher" "INFO" "Suspicious process pattern: $comm (PID: $pid)"
         fi
     done
     
     # Check for processes with suspicious names
     ps -eo pid,comm 2>/dev/null | grep -iE "(miner|crypto|bitcoin|malware|trojan|backdoor|keylogger)" | while read -r pid comm; do
         if [ -n "$pid" ]; then
-            write_event "process" "critical" "Suspicious process name detected" "{\"pid\": $pid, \"process\": \"$comm\"}"
+            local context_json="{\"pid\": $pid, \"process_name\": \"$comm\", \"anomaly_type\": \"suspicious_name\"}"
+            write_event "process_anomaly" "critical" "process_watcher" "$context_json"
+            log_watcher "process_watcher" "CRITICAL" "Suspicious process name detected: $comm (PID: $pid)"
         fi
     done
 }
+
+# Check system compatibility on load
+check_system_compatibility 2>/dev/null || true
 
 export -f detect_suspicious_processes
 

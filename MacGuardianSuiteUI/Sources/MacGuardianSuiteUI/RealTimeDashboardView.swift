@@ -15,7 +15,7 @@ struct RealTimeDashboardView: View {
         case network = "Network"
     }
     
-    var filteredEvents: [ThreatEvent] {
+    var filteredEvents: [MonitorEvent] {
         let events = monitorService.events
         
         switch selectedFilter {
@@ -170,7 +170,7 @@ struct RealTimeDashboardView: View {
                 } else {
                     LazyVStack(spacing: 12) {
                         ForEach(filteredEvents.prefix(100)) { event in
-                            ThreatEventRow(event: event)
+                            MonitorEventRow(event: event)
                         }
                     }
                     .padding(.horizontal)
@@ -203,8 +203,8 @@ struct RealTimeDashboardView: View {
     }
 }
 
-struct ThreatEventRow: View {
-    let event: ThreatEvent
+struct MonitorEventRow: View {
+    let event: MonitorEvent
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -252,28 +252,28 @@ struct ThreatEventRow: View {
             if hasDetails {
                 VStack(alignment: .leading, spacing: 6) {
                     if let pid = event.details.pid {
-                        DetailRow(label: "PID", value: "\(pid)")
+                        MonitorDetailRow(label: "PID", value: "\(pid)")
                     }
                     if let process = event.details.process {
-                        DetailRow(label: "Process", value: process)
+                        MonitorDetailRow(label: "Process", value: process)
                     }
                     if let cpu = event.details.cpu_percent {
-                        DetailRow(label: "CPU", value: String(format: "%.1f%%", cpu))
+                        MonitorDetailRow(label: "CPU", value: String(format: "%.1f%%", cpu))
                     }
                     if let port = event.details.port {
-                        DetailRow(label: "Port", value: "\(port)")
+                        MonitorDetailRow(label: "Port", value: "\(port)")
                     }
                     if let remote = event.details.remote {
-                        DetailRow(label: "Remote", value: remote)
+                        MonitorDetailRow(label: "Remote", value: remote)
                     }
                     if let ip = event.details.ip {
-                        DetailRow(label: "IP", value: ip)
+                        MonitorDetailRow(label: "IP", value: ip)
                     }
                     if let directory = event.details.directory {
-                        DetailRow(label: "Directory", value: directory)
+                        MonitorDetailRow(label: "Directory", value: directory)
                     }
                     if let fileCount = event.details.file_count {
-                        DetailRow(label: "Files Changed", value: "\(fileCount)")
+                        MonitorDetailRow(label: "Files Changed", value: "\(fileCount)")
                     }
                     if let files = event.details.files, !files.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
@@ -348,7 +348,7 @@ struct ThreatEventRow: View {
     }
 }
 
-struct DetailRow: View {
+struct MonitorDetailRow: View {
     let label: String
     let value: String
     

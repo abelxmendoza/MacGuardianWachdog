@@ -3,7 +3,7 @@ import Combine
 
 /// Real-time monitoring service that reads security events from the daemon
 class RealTimeMonitorService: ObservableObject {
-    @Published var events: [ThreatEvent] = []
+    @Published var events: [MonitorEvent] = []
     @Published var isMonitoring: Bool = false
     @Published var lastUpdate: Date?
     
@@ -86,12 +86,12 @@ class RealTimeMonitorService: ObservableObject {
         }
         
         // Load events from JSON files
-        var loadedEvents: [ThreatEvent] = []
+        var loadedEvents: [MonitorEvent] = []
         
         for file in sortedFiles.prefix(maxEvents) {
             guard file.pathExtension == "json",
                   let data = try? Data(contentsOf: file),
-                  let event = try? JSONDecoder().decode(ThreatEvent.self, from: data) else {
+                  let event = try? JSONDecoder().decode(MonitorEvent.self, from: data) else {
                 continue
             }
             
@@ -123,15 +123,15 @@ class RealTimeMonitorService: ObservableObject {
         lastUpdate = Date()
     }
     
-    var criticalEvents: [ThreatEvent] {
+    var criticalEvents: [MonitorEvent] {
         events.filter { $0.severity == "critical" }
     }
     
-    var highSeverityEvents: [ThreatEvent] {
+    var highSeverityEvents: [MonitorEvent] {
         events.filter { $0.severity == "high" }
     }
     
-    var recentEvents: [ThreatEvent] {
+    var recentEvents: [MonitorEvent] {
         Array(events.prefix(50))
     }
     
@@ -140,14 +140,14 @@ class RealTimeMonitorService: ObservableObject {
     }
 }
 
-/// Threat event model matching the JSON structure from the daemon
-struct ThreatEvent: Codable, Identifiable {
+/// Monitor event model matching the JSON structure from the daemon
+struct MonitorEvent: Codable, Identifiable {
     let id: String
     let timestamp: String
     let type: String
     let severity: String
     let message: String
-    let details: ThreatEventDetails
+    let details: MonitorEventDetails
     
     var date: Date? {
         let formatter = ISO8601DateFormatter()
@@ -166,8 +166,8 @@ struct ThreatEvent: Codable, Identifiable {
     }
 }
 
-/// Threat event details (flexible JSON structure)
-struct ThreatEventDetails: Codable {
+/// Monitor event details (flexible JSON structure)
+struct MonitorEventDetails: Codable {
     // Common fields
     let pid: Int?
     let process: String?

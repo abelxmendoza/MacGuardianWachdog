@@ -1,11 +1,20 @@
-#!/bin/zsh
+#!/bin/bash
 
 # ===============================
 # FSEvents Watcher
 # Real-time file system change detection
+# Event Spec v1.0.0 compliant
 # ===============================
 
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
 source "$SCRIPT_DIR/event_writer.sh" 2>/dev/null || true
 
 # Watch directories (configurable)
@@ -23,6 +32,9 @@ LAST_CHECK_FILE="$HOME/.macguardian/.fsevents_last_check"
 if [ ! -f "$LAST_CHECK_FILE" ]; then
     echo "$(date +%s)" > "$LAST_CHECK_FILE"
 fi
+
+# Check system compatibility
+check_system_compatibility 2>/dev/null || true
 
 function detect_fs_changes() {
     local current_time=$(date +%s)
@@ -43,16 +55,44 @@ function detect_fs_changes() {
             
             # Only alert on significant changes (more than 5 files)
             if [ "$file_count" -gt 5 ] 2>/dev/null; then
-                # Get first file as example (simplified JSON)
-                local first_file=$(echo "$recent_files" | head -1 | sed 's/"/\\"/g')
-                write_event "filesystem" "medium" "Multiple file changes detected in $dir" "{\"directory\": \"$dir\", \"file_count\": $file_count, \"sample_file\": \"$first_file\"}"
+                # Build JSON array of changed files (first 10)
+                local files_array=()
+                while IFS= read -r file && [ ${#files_array[@]} -lt 10 ]; do
+                    if validate_path "$file" true; then
+                        files_array+=("\"$(echo "$file" | sed 's/"/\\"/g')\"")
+                    fi
+                done <<< "$recent_files"
+                
+                # Create context JSON (Event Spec v1.0.0)
+                local context_json="{\"directory\": \"$dir\", \"file_count\": $file_count, \"files\": [$(IFS=,; echo "${files_array[*]}")], \"change_type\": \"modified\"}"
+                
+                # Determine severity based on file count
+                local severity="medium"
+                if [ "$file_count" -gt 50 ]; then
+                    severity="high"
+                elif [ "$file_count" -gt 100 ]; then
+                    severity="critical"
+                fi
+                
+                # Write Event Spec v1.0.0 compliant event
+                write_event "file_integrity_change" "$severity" "fsevents_watcher" "$context_json"
+                log_watcher "fsevents_watcher" "INFO" "Detected $file_count file changes in $dir"
             fi
             
             # Check for suspicious file types
-            local suspicious=$(echo "$recent_files" | grep -E '\.(exe|bat|scr|vbs|ps1|sh)$' 2>/dev/null | head -1)
+            local suspicious=$(echo "$recent_files" | grep -E '\.(exe|bat|scr|vbs|ps1|sh)$' 2>/dev/null | head -5)
             if [ -n "$suspicious" ]; then
-                local escaped_file=$(echo "$suspicious" | sed 's/"/\\"/g')
-                write_event "filesystem" "high" "Suspicious file type detected" "{\"directory\": \"$dir\", \"file\": \"$escaped_file\"}"
+                local sus_files_array=()
+                while IFS= read -r file && [ ${#sus_files_array[@]} -lt 5 ]; do
+                    if validate_path "$file" true; then
+                        sus_files_array+=("\"$(echo "$file" | sed 's/"/\\"/g')\"")
+                    fi
+                done <<< "$suspicious"
+                
+                local context_json="{\"directory\": \"$dir\", \"files\": [$(IFS=,; echo "${sus_files_array[*]}")], \"change_type\": \"created\", \"suspicious_pattern\": \"executable_extension\"}"
+                
+                write_event "file_integrity_change" "high" "fsevents_watcher" "$context_json"
+                log_watcher "fsevents_watcher" "WARNING" "Suspicious file types detected in $dir"
             fi
         fi
     done

@@ -11,7 +11,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/utils.sh" 2>/dev/null || true
 
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
-MONITOR_SCRIPT="$SCRIPT_DIR/daemons/macguardian_monitor.sh"
+# Try new enhanced monitor first, fallback to original
+MONITOR_SCRIPT="$SCRIPT_DIR/daemons/mg_monitor.sh"
+if [ ! -f "$MONITOR_SCRIPT" ]; then
+    MONITOR_SCRIPT="$SCRIPT_DIR/daemons/macguardian_monitor.sh"
+fi
 PLIST_TEMPLATE="$SCRIPT_DIR/launchd/com.macguardian.monitor.plist"
 PLIST_FILE="$LAUNCH_AGENTS_DIR/com.macguardian.monitor.plist"
 LOG_DIR="$HOME/.macguardian/logs"
