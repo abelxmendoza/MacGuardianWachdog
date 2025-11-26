@@ -9,11 +9,15 @@ let package = Package(
     products: [
         .executable(name: "MacGuardianSuiteUI", targets: ["MacGuardianSuiteUI"])
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0")
+    ],
     targets: [
         .executableTarget(
             name: "MacGuardianSuiteUI",
-            dependencies: [],
+            dependencies: [
+                .product(name: "Yams", package: "Yams")
+            ],
             path: "Sources/MacGuardianSuiteUI",
             resources: [
                 .process("../../Resources")

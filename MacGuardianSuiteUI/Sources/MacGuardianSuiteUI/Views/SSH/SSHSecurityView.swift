@@ -1,10 +1,20 @@
 import SwiftUI
 
 struct SSHSecurityView: View {
-    @StateObject private var liveService = LiveUpdateService.shared
+    @StateObject private var viewModel = SSHSecurityViewModel()
     @State private var auditResult: SSHAuditResult?
     @State private var isLoading = false
     @State private var showBaselineAlert = false
+    
+    // Real-time SSH events from optimized view model
+    var sshEvents: [MacGuardianEvent] {
+        viewModel.sshEvents
+    }
+    
+    // Computed properties for real-time updates
+    var issuesFound: Int {
+        sshEvents.count
+    }
     
     var body: some View {
         ScrollView {
@@ -35,22 +45,28 @@ struct SSHSecurityView: View {
                 
                 Divider()
                 
+                // Real-time Connection Status
+                ConnectionStatusIndicator(
+                    isConnected: LiveUpdateService.shared.isConnected,
+                    lastUpdate: LiveUpdateService.shared.lastUpdate
+                )
+                
                 if isLoading {
                     ProgressView("Running SSH audit...")
                         .frame(maxWidth: .infinity)
                         .padding()
-                } else if let audit = auditResult {
-                    // Audit Results
+                } else {
+                    // Real-time Events Section
                     VStack(alignment: .leading, spacing: 16) {
                         // Summary
                         HStack {
                             VStack(alignment: .leading) {
-                                Text("Issues Found")
+                                Text("Real-Time Events")
                                     .font(.headline)
                                     .foregroundColor(.themeTextSecondary)
-                                Text("\(audit.issuesFound)")
+                                Text("\(issuesFound)")
                                     .font(.title.bold())
-                                    .foregroundColor(audit.issuesFound > 0 ? .red : .green)
+                                    .foregroundColor(issuesFound > 0 ? Color(red: 0.9, green: 0.1, blue: 0.3) : .green)
                             }
                             Spacer()
                             Button {
@@ -64,14 +80,14 @@ struct SSHSecurityView: View {
                         .background(Color.themeDarkGray)
                         .cornerRadius(12)
                         
-                        // Findings
-                        if audit.issuesFound > 0 {
+                        // Real-time SSH Events
+                        if !sshEvents.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Findings")
+                                Text("Recent SSH Events")
                                     .font(.headline.bold())
                                 
-                                ForEach(audit.findings, id: \.id) { finding in
-                                    FindingRow(finding: finding)
+                                ForEach(sshEvents.prefix(20)) { event in
+                                    SSHEventRow(event: event)
                                 }
                             }
                             .padding()
@@ -79,47 +95,55 @@ struct SSHSecurityView: View {
                             .cornerRadius(12)
                         }
                         
-                        // File Status
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("File Status")
-                                .font(.headline.bold())
-                            
-                            FileStatusRow(
-                                name: "Authorized Keys",
-                                path: audit.authorizedKeysFile,
-                                status: audit.authorizedKeysStatus
-                            )
-                            
-                            FileStatusRow(
-                                name: "SSH Config",
-                                path: audit.configFile,
-                                status: audit.configStatus
-                            )
-                            
-                            FileStatusRow(
-                                name: "Known Hosts",
-                                path: audit.knownHostsFile,
-                                status: audit.knownHostsStatus
-                            )
+                        // Static Audit Results (if available)
+                        if let audit = auditResult {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Last Audit Results")
+                                    .font(.headline.bold())
+                                
+                                // File Status
+                                VStack(alignment: .leading, spacing: 8) {
+                                    FileStatusRow(
+                                        name: "Authorized Keys",
+                                        path: audit.authorizedKeysFile,
+                                        status: audit.authorizedKeysStatus
+                                    )
+                                    
+                                    FileStatusRow(
+                                        name: "SSH Config",
+                                        path: audit.configFile,
+                                        status: audit.configStatus
+                                    )
+                                    
+                                    FileStatusRow(
+                                        name: "Known Hosts",
+                                        path: audit.knownHostsFile,
+                                        status: audit.knownHostsStatus
+                                    )
+                                }
+                                .padding()
+                                .background(Color.themeBlack.opacity(0.5))
+                                .cornerRadius(8)
+                            }
+                            .padding()
+                            .background(Color.themeDarkGray)
+                            .cornerRadius(12)
+                        } else if sshEvents.isEmpty {
+                            // Empty State
+                            VStack(spacing: 16) {
+                                Image(systemName: "key")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(.themeTextSecondary)
+                                Text("No SSH events detected")
+                                    .font(.headline)
+                                Text("SSH security events will appear here in real-time")
+                                    .font(.subheadline)
+                                    .foregroundColor(.themeTextSecondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
-                        .padding()
-                        .background(Color.themeDarkGray)
-                        .cornerRadius(12)
                     }
-                    .padding()
-                } else {
-                    // Empty State
-                    VStack(spacing: 16) {
-                        Image(systemName: "key")
-                            .font(.system(size: 60))
-                            .foregroundColor(.themeTextSecondary)
-                        Text("No audit results")
-                            .font(.headline)
-                        Text("Run an audit to check SSH security")
-                            .font(.subheadline)
-                            .foregroundColor(.themeTextSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
                     .padding()
                 }
             }
@@ -162,7 +186,11 @@ struct SSHSecurityView: View {
                 
                 if let files = try? FileManager.default.contentsOfDirectory(at: auditDir, includingPropertiesForKeys: [.creationDateKey]),
                    let latestFile = files.filter({ $0.lastPathComponent.contains("ssh_audit") })
-                       .sorted(by: { ($0.creationDate ?? Date.distantPast) > ($1.creationDate ?? Date.distantPast) })
+                       .sorted(by: { 
+                      let date0 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      let date1 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      return date0 > date1
+                  })
                        .first,
                    let data = try? Data(contentsOf: latestFile),
                    let audit = try? JSONDecoder().decode(SSHAuditResult.self, from: data) {
@@ -189,7 +217,11 @@ struct SSHSecurityView: View {
         
         guard let files = try? FileManager.default.contentsOfDirectory(at: auditDir, includingPropertiesForKeys: [.creationDateKey]),
               let latestFile = files.filter({ $0.lastPathComponent.contains("ssh_audit") })
-                  .sorted(by: { ($0.creationDate ?? Date.distantPast) > ($1.creationDate ?? Date.distantPast) })
+                  .sorted(by: { 
+                      let date0 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      let date1 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      return date0 > date1
+                  })
                   .first,
               let data = try? Data(contentsOf: latestFile),
               let audit = try? JSONDecoder().decode(SSHAuditResult.self, from: data) else {
@@ -209,6 +241,68 @@ struct SSHSecurityView: View {
             try? process.run()
             process.waitUntilExit()
         }
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// Real-time SSH Event Row Component
+struct SSHEventRow: View {
+    let event: MacGuardianEvent
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Severity indicator
+            Circle()
+                .fill(event.severityColor)
+                .frame(width: 12, height: 12)
+                .padding(.top, 4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.event_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.themeText)
+                    Spacer()
+                    if let date = event.date {
+                        Text(formatTime(date))
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                    }
+                }
+                
+                Text(event.message)
+                    .font(.subheadline)
+                    .foregroundColor(.themeTextSecondary)
+                
+                // Show source
+                HStack {
+                    Image(systemName: "tag.fill")
+                        .font(.caption2)
+                    Text(event.source)
+                        .font(.caption)
+                }
+                .foregroundColor(.themePurple.opacity(0.7))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.themePurple.opacity(0.1))
+                .cornerRadius(4)
+            }
+        }
+        .padding()
+        .background(Color.themeBlack.opacity(0.5))
+        .cornerRadius(8)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 

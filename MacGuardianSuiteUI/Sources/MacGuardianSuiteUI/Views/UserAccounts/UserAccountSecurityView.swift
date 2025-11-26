@@ -5,6 +5,11 @@ struct UserAccountSecurityView: View {
     @State private var auditResult: UserAccountAuditResult?
     @State private var isLoading = false
     
+    // Real-time user account events
+    var userEvents: [MacGuardianEvent] {
+        liveService.userAccountEvents
+    }
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -34,88 +39,108 @@ struct UserAccountSecurityView: View {
                 
                 Divider()
                 
+                // Real-time Connection Status
+                HStack {
+                    ConnectionStatusIndicator(
+                        isConnected: liveService.isConnected,
+                        lastUpdate: liveService.lastUpdate,
+                        showLastUpdate: false
+                    )
+                    Spacer()
+                    Text("\(userEvents.count) real-time event(s)")
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                
                 if isLoading {
                     ProgressView("Running user account audit...")
                         .frame(maxWidth: .infinity)
                         .padding()
-                } else if let audit = auditResult {
-                    // Statistics
-                    HStack(spacing: 16) {
-                        StatCard(
-                            title: "Total Users",
-                            value: "\(audit.currentUserCount)",
-                            icon: "person.3.fill",
-                            color: .themePurple
-                        )
-                        StatCard(
-                            title: "Admin Accounts",
-                            value: "\(audit.adminAccounts)",
-                            icon: "key.fill",
-                            color: audit.adminAccounts > 1 ? .orange : .themePurple
-                        )
-                        StatCard(
-                            title: "Root Accounts",
-                            value: "\(audit.rootAccounts)",
-                            icon: "exclamationmark.shield.fill",
-                            color: audit.rootAccounts > 0 ? .red : .themePurple
-                        )
-                    }
-                    .padding()
-                    
-                    // Issues
-                    if audit.issuesFound > 0 {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Security Issues")
-                                .font(.headline.bold())
-                            
-                            if audit.currentUserCount != audit.baselineUserCount {
-                                IssueCard(
-                                    title: "User Count Changed",
-                                    message: "\(audit.baselineUserCount) → \(audit.currentUserCount)",
-                                    severity: .warning
-                                )
-                            }
-                            
-                            if audit.rootAccounts > 0 {
-                                IssueCard(
-                                    title: "UID 0 Accounts Detected",
-                                    message: "Root-level accounts found",
-                                    severity: .critical
-                                )
-                            }
-                            
-                            if audit.adminAccounts != audit.baselineAdminCount {
-                                IssueCard(
-                                    title: "Admin Count Changed",
-                                    message: "\(audit.baselineAdminCount) → \(audit.adminAccounts)",
-                                    severity: .warning
-                                )
-                            }
-                        }
-                        .padding()
-                        .background(Color.themeDarkGray)
-                        .cornerRadius(12)
-                    }
-                    
-                    // User List
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("All Users")
-                            .font(.headline.bold())
-                        
-                        // Would load actual user list here
-                        Text("User enumeration would appear here")
-                            .font(.subheadline)
-                            .foregroundColor(.themeTextSecondary)
-                    }
-                    .padding()
-                    .background(Color.themeDarkGray)
-                    .cornerRadius(12)
                 } else {
-                    EmptyStateView(
-                        icon: "person.2",
-                        title: "No audit results",
-                        message: "Run an audit to check user account security"
-                    )
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Real-time Events Section
+                        if !userEvents.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Real-Time User Account Events")
+                                    .font(.headline.bold())
+                                
+                                ForEach(userEvents.prefix(20)) { event in
+                                    UserAccountEventRow(event: event)
+                                }
+                            }
+                            .padding()
+                            .background(Color.themeDarkGray)
+                            .cornerRadius(12)
+                        }
+                        
+                        // Static Audit Results (if available)
+                        if let audit = auditResult {
+                            // Statistics
+                            HStack(spacing: 16) {
+                                StatCard(
+                                    title: "Total Users",
+                                    value: "\(audit.currentUserCount)",
+                                    icon: "person.3.fill",
+                                    color: .themePurple
+                                )
+                                StatCard(
+                                    title: "Admin Accounts",
+                                    value: "\(audit.adminAccounts)",
+                                    icon: "key.fill",
+                                    color: audit.adminAccounts > 1 ? .orange : .themePurple
+                                )
+                                StatCard(
+                                    title: "Root Accounts",
+                                    value: "\(audit.rootAccounts)",
+                                    icon: "exclamationmark.shield.fill",
+                                    color: audit.rootAccounts > 0 ? Color(red: 0.9, green: 0.1, blue: 0.3) : .themePurple
+                                )
+                            }
+                            .padding()
+                            
+                            // Issues
+                            if audit.issuesFound > 0 {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Security Issues")
+                                        .font(.headline.bold())
+                                    
+                                    if audit.currentUserCount != audit.baselineUserCount {
+                                        IssueCard(
+                                            title: "User Count Changed",
+                                            message: "\(audit.baselineUserCount) → \(audit.currentUserCount)",
+                                            severity: .warning
+                                        )
+                                    }
+                                    
+                                    if audit.rootAccounts > 0 {
+                                        IssueCard(
+                                            title: "UID 0 Accounts Detected",
+                                            message: "Root-level accounts found",
+                                            severity: .critical
+                                        )
+                                    }
+                                    
+                                    if audit.adminAccounts != audit.baselineAdminCount {
+                                        IssueCard(
+                                            title: "Admin Count Changed",
+                                            message: "\(audit.baselineAdminCount) → \(audit.adminAccounts)",
+                                            severity: .warning
+                                        )
+                                    }
+                                }
+                                .padding()
+                                .background(Color.themeDarkGray)
+                                .cornerRadius(12)
+                            }
+                        } else if userEvents.isEmpty {
+                            EmptyStateView(
+                                icon: "person.2",
+                                title: "No user account events",
+                                message: "User account security events will appear here in real-time"
+                            )
+                        }
+                    }
+                    .padding()
                 }
             }
         }
@@ -127,7 +152,7 @@ struct UserAccountSecurityView: View {
     
     private func runAudit() {
         isLoading = true
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async(execute: {
             let scriptPath = "\(FileManager.default.homeDirectoryForCurrentUser.path)/Desktop/MacGuardianProject/MacGuardianSuite/auditors/user_account_auditor.sh"
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -145,7 +170,11 @@ struct UserAccountSecurityView: View {
                 
                 if let files = try? FileManager.default.contentsOfDirectory(at: auditDir, includingPropertiesForKeys: [.creationDateKey]),
                    let latestFile = files.filter({ $0.lastPathComponent.contains("user_accounts") })
-                       .sorted(by: { ($0.creationDate ?? Date.distantPast) > ($1.creationDate ?? Date.distantPast) })
+                       .sorted(by: { 
+                           let date0 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                           let date1 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                           return date0 > date1
+                       })
                        .first,
                    let data = try? Data(contentsOf: latestFile),
                    let audit = try? JSONDecoder().decode(UserAccountAuditResult.self, from: data) {
@@ -163,7 +192,7 @@ struct UserAccountSecurityView: View {
                     self.isLoading = false
                 }
             }
-        }
+        })
     }
     
     private func loadLatestAudit() {
@@ -172,7 +201,11 @@ struct UserAccountSecurityView: View {
         
         guard let files = try? FileManager.default.contentsOfDirectory(at: auditDir, includingPropertiesForKeys: [.creationDateKey]),
               let latestFile = files.filter({ $0.lastPathComponent.contains("user_accounts") })
-                  .sorted(by: { ($0.creationDate ?? Date.distantPast) > ($1.creationDate ?? Date.distantPast) })
+                  .sorted(by: { 
+                      let date0 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      let date1 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                      return date0 > date1
+                  })
                   .first,
               let data = try? Data(contentsOf: latestFile),
               let audit = try? JSONDecoder().decode(UserAccountAuditResult.self, from: data) else {
@@ -287,6 +320,64 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
+    }
+}
+
+// Real-time User Account Event Row Component
+struct UserAccountEventRow: View {
+    let event: MacGuardianEvent
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Severity indicator
+            Circle()
+                .fill(event.severityColor)
+                .frame(width: 12, height: 12)
+                .padding(.top, 4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.event_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.themeText)
+                    Spacer()
+                    if let date = event.date {
+                        Text(formatTime(date))
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                    }
+                }
+                
+                Text(event.message)
+                    .font(.subheadline)
+                    .foregroundColor(.themeTextSecondary)
+                
+                // Show context details if available
+                if let changeType = event.context["change_type"]?.value as? String {
+                    HStack {
+                        Image(systemName: "info.circle.fill")
+                            .font(.caption2)
+                        Text(changeType.capitalized)
+                            .font(.caption)
+                    }
+                    .foregroundColor(.themePurple.opacity(0.7))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.themePurple.opacity(0.1))
+                    .cornerRadius(4)
+                }
+            }
+        }
+        .padding()
+        .background(Color.themeBlack.opacity(0.5))
+        .cornerRadius(8)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 

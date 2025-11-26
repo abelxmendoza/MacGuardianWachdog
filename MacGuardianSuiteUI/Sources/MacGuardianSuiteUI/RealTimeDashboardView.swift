@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RealTimeDashboardView: View {
-    @StateObject private var monitorService = RealTimeMonitorService()
+    @StateObject private var liveService = LiveUpdateService.shared
     @State private var selectedFilter: EventFilter = .all
     @State private var showClearConfirmation = false
     
@@ -15,24 +15,24 @@ struct RealTimeDashboardView: View {
         case network = "Network"
     }
     
-    var filteredEvents: [MonitorEvent] {
-        let events = monitorService.events
+    var filteredEvents: [MacGuardianEvent] {
+        let events = liveService.events
         
         switch selectedFilter {
         case .all:
             return events
         case .critical:
-            return events.filter { $0.severity == "critical" }
+            return liveService.criticalEvents
         case .high:
-            return events.filter { $0.severity == "high" }
+            return liveService.highSeverityEvents
         case .medium:
-            return events.filter { $0.severity == "medium" }
+            return events.filter { $0.severity.lowercased() == "medium" }
         case .filesystem:
-            return events.filter { $0.type == "filesystem" }
+            return liveService.filesystemEvents
         case .process:
-            return events.filter { $0.type == "process" }
+            return liveService.processEvents
         case .network:
-            return events.filter { $0.type == "network" }
+            return liveService.networkEvents
         }
     }
     
@@ -52,12 +52,12 @@ struct RealTimeDashboardView: View {
                     }
                     Spacer()
                     
-                    // Monitoring status
+                    // Connection status
                     HStack(spacing: 8) {
                         Circle()
-                            .fill(monitorService.isMonitoring ? Color.green : Color.red)
+                            .fill(liveService.isConnected ? Color.green : Color.red)
                             .frame(width: 12, height: 12)
-                        Text(monitorService.isMonitoring ? "Monitoring" : "Stopped")
+                        Text(liveService.isConnected ? "Connected" : "Disconnected")
                             .font(.caption)
                             .foregroundColor(.themeTextSecondary)
                     }
@@ -68,25 +68,25 @@ struct RealTimeDashboardView: View {
                 HStack(spacing: 16) {
                     StatCard(
                         title: "Total Events",
-                        value: "\(monitorService.events.count)",
+                        value: "\(liveService.events.count)",
                         icon: "bell.fill",
                         color: .themePurple
                     )
                     StatCard(
                         title: "Critical",
-                        value: "\(monitorService.criticalEvents.count)",
+                        value: "\(liveService.criticalEvents.count)",
                         icon: "exclamationmark.octagon.fill",
-                        color: .red
+                        color: Color(red: 0.9, green: 0.1, blue: 0.3) // Muted red-purple
                     )
                     StatCard(
                         title: "High Severity",
-                        value: "\(monitorService.highSeverityEvents.count)",
+                        value: "\(liveService.highSeverityEvents.count)",
                         icon: "exclamationmark.triangle.fill",
-                        color: .orange
+                        color: Color(red: 0.8, green: 0.3, blue: 0.5) // Purple-red blend
                     )
                     StatCard(
                         title: "Last Update",
-                        value: monitorService.lastUpdate != nil ? formatTime(monitorService.lastUpdate!) : "Never",
+                        value: liveService.lastUpdate != nil ? formatTime(liveService.lastUpdate!) : "Never",
                         icon: "clock.fill",
                         color: .themePurple
                     )
@@ -105,36 +105,6 @@ struct RealTimeDashboardView: View {
                     .frame(maxWidth: 200)
                     
                     Spacer()
-                    
-                    // Start/Stop monitoring
-                    Button {
-                        if monitorService.isMonitoring {
-                            monitorService.stopMonitoring()
-                        } else {
-                            monitorService.startMonitoring()
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: monitorService.isMonitoring ? "stop.circle.fill" : "play.circle.fill")
-                            Text(monitorService.isMonitoring ? "Stop Monitoring" : "Start Monitoring")
-                        }
-                        .font(.subheadline.bold())
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(monitorService.isMonitoring ? .red : .green)
-                    
-                    // Refresh button
-                    Button {
-                        monitorService.loadEvents()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.clockwise")
-                            Text("Refresh")
-                        }
-                        .font(.subheadline)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.themePurple)
                     
                     // Clear events
                     Button {
@@ -170,7 +140,7 @@ struct RealTimeDashboardView: View {
                 } else {
                     LazyVStack(spacing: 12) {
                         ForEach(filteredEvents.prefix(100)) { event in
-                            MonitorEventRow(event: event)
+                            EventRowView(event: event)
                         }
                     }
                     .padding(.horizontal)
@@ -179,17 +149,12 @@ struct RealTimeDashboardView: View {
             .padding(.vertical)
         }
         .background(Color.themeBlack)
-        .onAppear {
-            monitorService.startMonitoring()
-        }
-        .onDisappear {
-            // Keep monitoring running in background
-            // monitorService.stopMonitoring()
-        }
         .alert("Clear All Events?", isPresented: $showClearConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear", role: .destructive) {
-                monitorService.clearEvents()
+                Task {
+                    await liveService.clearEvents()
+                }
             }
         } message: {
             Text("This will permanently delete all events. This action cannot be undone.")
@@ -203,8 +168,8 @@ struct RealTimeDashboardView: View {
     }
 }
 
-struct MonitorEventRow: View {
-    let event: MonitorEvent
+struct EventRowView: View {
+    let event: MacGuardianEvent
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -212,11 +177,11 @@ struct MonitorEventRow: View {
             HStack {
                 // Severity indicator
                 Circle()
-                    .fill(severityColor)
+                    .fill(event.severityColor)
                     .frame(width: 12, height: 12)
                 
                 // Type badge
-                Text(event.type.uppercased())
+                Text(event.event_type.uppercased())
                     .font(.caption.bold())
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
@@ -230,7 +195,7 @@ struct MonitorEventRow: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(severityColor)
+                    .background(event.severityColor)
                     .cornerRadius(6)
                 
                 Spacer()
@@ -251,31 +216,31 @@ struct MonitorEventRow: View {
             // Details
             if hasDetails {
                 VStack(alignment: .leading, spacing: 6) {
-                    if let pid = event.details.pid {
+                    if let pid = event.context["pid"]?.value as? Int {
                         MonitorDetailRow(label: "PID", value: "\(pid)")
                     }
-                    if let process = event.details.process {
+                    if let process = event.context["process"]?.value as? String ?? event.context["process_name"]?.value as? String {
                         MonitorDetailRow(label: "Process", value: process)
                     }
-                    if let cpu = event.details.cpu_percent {
+                    if let cpu = event.context["cpu_percent"]?.value as? Double ?? event.context["cpu"]?.value as? Double {
                         MonitorDetailRow(label: "CPU", value: String(format: "%.1f%%", cpu))
                     }
-                    if let port = event.details.port {
+                    if let port = event.context["port"]?.value as? Int {
                         MonitorDetailRow(label: "Port", value: "\(port)")
                     }
-                    if let remote = event.details.remote {
+                    if let remote = event.context["remote"]?.value as? String ?? event.context["remote_ip"]?.value as? String {
                         MonitorDetailRow(label: "Remote", value: remote)
                     }
-                    if let ip = event.details.ip {
+                    if let ip = event.context["ip"]?.value as? String ?? event.context["local_ip"]?.value as? String {
                         MonitorDetailRow(label: "IP", value: ip)
                     }
-                    if let directory = event.details.directory {
+                    if let directory = event.context["directory"]?.value as? String ?? event.context["path"]?.value as? String {
                         MonitorDetailRow(label: "Directory", value: directory)
                     }
-                    if let fileCount = event.details.file_count {
+                    if let fileCount = event.context["file_count"]?.value as? Int {
                         MonitorDetailRow(label: "Files Changed", value: "\(fileCount)")
                     }
-                    if let files = event.details.files, !files.isEmpty {
+                    if let files = event.context["files"]?.value as? [String] {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Files:")
                                 .font(.caption.bold())
@@ -304,40 +269,35 @@ struct MonitorEventRow: View {
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(severityColor.opacity(0.5), lineWidth: 2)
+                .stroke(event.severityColor.opacity(0.5), lineWidth: 2)
         )
     }
     
-    private var severityColor: Color {
-        switch event.severity.lowercased() {
-        case "critical": return .red
-        case "high": return .orange
-        case "medium": return .yellow
-        case "low": return .blue
-        default: return .gray
-        }
-    }
-    
     private var typeColor: Color {
-        switch event.type.lowercased() {
-        case "filesystem": return .blue
-        case "process": return .purple
-        case "network": return .cyan
-        case "system": return .gray
+        switch event.event_type.lowercased() {
+        case "file_change", "filesystem": return .themePurple
+        case "process_spawn", "process": return .themePurpleLight
+        case "network_connection", "network": return .themePurple
+        case "system": return .themeTextSecondary
         default: return .themePurple
         }
     }
     
     private var hasDetails: Bool {
-        event.details.pid != nil ||
-        event.details.process != nil ||
-        event.details.cpu_percent != nil ||
-        event.details.port != nil ||
-        event.details.remote != nil ||
-        event.details.ip != nil ||
-        event.details.directory != nil ||
-        event.details.file_count != nil ||
-        (event.details.files != nil && !event.details.files!.isEmpty)
+        event.context["pid"]?.value != nil ||
+        event.context["process"]?.value != nil ||
+        event.context["process_name"]?.value != nil ||
+        event.context["cpu_percent"]?.value != nil ||
+        event.context["cpu"]?.value != nil ||
+        event.context["port"]?.value != nil ||
+        event.context["remote"]?.value != nil ||
+        event.context["remote_ip"]?.value != nil ||
+        event.context["ip"]?.value != nil ||
+        event.context["local_ip"]?.value != nil ||
+        event.context["directory"]?.value != nil ||
+        event.context["path"]?.value != nil ||
+        event.context["file_count"]?.value != nil ||
+        (event.context["files"]?.value as? [String] != nil)
     }
     
     private func formatDate(_ date: Date) -> String {

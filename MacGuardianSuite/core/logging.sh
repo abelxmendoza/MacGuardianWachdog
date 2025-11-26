@@ -111,6 +111,18 @@ log_detector() {
     echo "[$timestamp] [$detector_name] [$level] $message" >> "$LOG_DETECTORS"
 }
 
+log_router() {
+    local router_name="$1"
+    local level="$2"
+    shift 2
+    local message="$*"
+    local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    
+    rotate_log_if_needed "$LOG_CORE"
+    
+    echo "[$timestamp] [ROUTER] [$router_name] [$level] $message" >> "$LOG_CORE"
+}
+
 # ===============================
 # JSON Event Logging
 # ===============================
@@ -164,6 +176,7 @@ export -f log_core
 export -f log_watcher
 export -f log_auditor
 export -f log_detector
+export -f log_router
 export -f log_json_event
 export -f log_incident
 export -f log_info

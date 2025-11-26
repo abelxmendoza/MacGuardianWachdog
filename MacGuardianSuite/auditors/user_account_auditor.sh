@@ -3,6 +3,7 @@
 # ===============================
 # User Account Security Auditor
 # Comprehensive user account and privilege auditing
+# Event Spec v1.0.0 compliant
 # ===============================
 
 set -euo pipefail
@@ -10,8 +11,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-source "$SUITE_DIR/core/utils.sh" 2>/dev/null || true
-source "$SUITE_DIR/core/config.sh" 2>/dev/null || true
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/privilege_check.sh" 2>/dev/null || true
+source "$SUITE_DIR/daemons/event_writer.sh" 2>/dev/null || true
 
 BASELINE_DIR="$HOME/.macguardian/baselines"
 USER_BASELINE="$BASELINE_DIR/user_accounts.json"
@@ -23,7 +28,7 @@ mkdir -p "$BASELINE_DIR" "$(dirname "$AUDIT_OUTPUT")"
 # Initialize baseline
 init_user_baseline() {
     if [ ! -f "$USER_BASELINE" ]; then
-        log_message "INFO" "Creating user account baseline..."
+        log_auditor "user_account_auditor" "INFO" "Creating user account baseline..."
         
         local users_json="["
         local first=true
@@ -76,7 +81,7 @@ init_user_baseline() {
 }
 EOF
         
-        success "User account baseline created"
+        log_auditor "user_account_auditor" "INFO" "User account baseline created"
     fi
 }
 
@@ -123,14 +128,23 @@ audit_user_accounts() {
     
     if [ "$current_user_count" -gt "$baseline_user_count" ]; then
         issues=$((issues + 1))
-        warning "New user account(s) detected: $current_user_count vs baseline $baseline_user_count"
+        
+        # Emit Event Spec v1.0.0 event
+        local new_users=$((current_user_count - baseline_user_count))
+        local context_json="{\"change_type\": \"added\", \"new_user_count\": $new_users, \"total_users\": $current_user_count, \"baseline_count\": $baseline_user_count}"
+        write_event "user_account_change" "high" "user_account_auditor" "$context_json"
+        log_auditor "user_account_auditor" "WARNING" "New user account(s) detected: $current_user_count vs baseline $baseline_user_count"
     fi
     
     # Check for UID 0 accounts (root)
     local root_users=$(echo "$current_users" | grep -o '"uid":"0"' | wc -l | tr -d ' ' || echo "0")
     if [ "$root_users" -gt 0 ]; then
         issues=$((issues + 1))
-        warning "UID 0 (root) account(s) detected"
+        
+        # Emit Event Spec v1.0.0 event
+        local context_json="{\"change_type\": \"anomaly\", \"anomaly_type\": \"uid_0_detected\", \"uid_0_count\": $root_users}"
+        write_event "user_account_change" "critical" "user_account_auditor" "$context_json"
+        log_auditor "user_account_auditor" "CRITICAL" "UID 0 (root) account(s) detected"
     fi
     
     # Check sudoers file integrity
@@ -140,7 +154,11 @@ audit_user_accounts() {
         
         if [ -n "$baseline_hash" ] && [ "$current_hash" != "$baseline_hash" ]; then
             issues=$((issues + 1))
-            warning "Sudoers file modified"
+            
+            # Emit Event Spec v1.0.0 event
+            local context_json="{\"change_type\": \"modified\", \"file\": \"$SUDOERS_FILE\", \"old_hash\": \"$baseline_hash\", \"new_hash\": \"$current_hash\"}"
+            write_event "user_account_change" "critical" "user_account_auditor" "$context_json"
+            log_auditor "user_account_auditor" "CRITICAL" "Sudoers file modified"
         fi
     fi
     
@@ -150,7 +168,19 @@ audit_user_accounts() {
     
     if [ "$current_admins" != "$baseline_admins" ]; then
         issues=$((issues + 1))
-        warning "Admin account count changed: $baseline_admins -> $current_admins"
+        
+        # Determine change type
+        local change_type="modified"
+        if [ "$current_admins" -gt "$baseline_admins" ]; then
+            change_type="admin_added"
+        else
+            change_type="admin_removed"
+        fi
+        
+        # Emit Event Spec v1.0.0 event
+        local context_json="{\"change_type\": \"$change_type\", \"baseline_admin_count\": $baseline_admins, \"current_admin_count\": $current_admins}"
+        write_event "user_account_change" "high" "user_account_auditor" "$context_json"
+        log_auditor "user_account_auditor" "WARNING" "Admin account count changed: $baseline_admins -> $current_admins"
     fi
     
     # Check last login times for anomalies
@@ -176,13 +206,18 @@ audit_user_accounts() {
 EOF
     
     if [ $issues -eq 0 ]; then
-        success "User account audit completed - no issues found"
+        log_auditor "user_account_auditor" "INFO" "User account audit completed - no issues found"
     else
-        warning "User account audit completed - $issues issue(s) found"
+        log_auditor "user_account_auditor" "WARNING" "User account audit completed - $issues issue(s) found"
     fi
     
     return $issues
 }
+
+# Check privileges on load
+if ! check_privileges "audit"; then
+    log_auditor "user_account_auditor" "WARNING" "Some user account audit checks may require sudo privileges"
+fi
 
 # Main execution
 if [ "${1:-audit}" = "baseline" ]; then

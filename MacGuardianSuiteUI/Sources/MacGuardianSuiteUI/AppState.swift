@@ -300,6 +300,11 @@ enum AppView: String, CaseIterable {
     case history = "History"
     case security = "Security"
     case settings = "Settings"
+    case sshSecurity = "SSH Security"
+    case userAccountSecurity = "User Accounts"
+    case privacyHeatmap = "Privacy"
+    case networkGraph = "Network Graph"
+    case incidentTimeline = "Timeline"
     
     var icon: String {
         switch self {
@@ -316,6 +321,11 @@ enum AppView: String, CaseIterable {
         case .history: return "clock.fill"
         case .security: return "shield.checkered.fill"
         case .settings: return "gearshape.fill"
+        case .sshSecurity: return "key.fill"
+        case .userAccountSecurity: return "person.2.fill"
+        case .privacyHeatmap: return "hand.raised.fill"
+        case .networkGraph: return "network"
+        case .incidentTimeline: return "clock.fill"
         }
     }
 }

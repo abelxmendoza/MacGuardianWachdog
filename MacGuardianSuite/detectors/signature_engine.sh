@@ -3,6 +3,7 @@
 # ===============================
 # Signature Engine
 # Custom malware signature detection
+# Event Spec v1.0.0 compliant
 # ===============================
 
 set -euo pipefail
@@ -10,7 +11,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-source "$SUITE_DIR/core/utils.sh" 2>/dev/null || true
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/hashing.sh" 2>/dev/null || true
+source "$SUITE_DIR/daemons/event_writer.sh" 2>/dev/null || true
 
 SIGNATURES_DIR="$SUITE_DIR/config/signatures"
 SIGNATURE_DB="$SIGNATURES_DIR/signatures.json"
@@ -21,7 +26,7 @@ mkdir -p "$SIGNATURES_DIR"
 # Initialize signature database
 init_signatures() {
     if [ ! -f "$SIGNATURE_DB" ]; then
-        log_message "INFO" "Creating signature database..."
+        log_detector "signature_engine" "INFO" "Creating signature database..."
         
         cat > "$SIGNATURE_DB" <<EOF
 {
@@ -58,7 +63,7 @@ init_signatures() {
 }
 EOF
         
-        success "Signature database created"
+        log_detector "signature_engine" "INFO" "Signature database created"
     fi
 }
 
@@ -76,7 +81,12 @@ scan_file() {
     if [ -n "$file_hash" ] && [ -f "$SIGNATURE_DB" ]; then
         if grep -q "\"$file_hash\"" "$SIGNATURE_DB" 2>/dev/null; then
             matches=$((matches + 1))
-            echo "MATCH: Known malicious hash: $file_hash"
+            
+            # Emit Event Spec v1.0.0 event
+            local escaped_file=$(echo "$file" | sed 's/"/\\"/g')
+            local context_json="{\"match_type\": \"hash\", \"file\": \"$escaped_file\", \"hash\": \"$file_hash\", \"signature_source\": \"signature_db\"}"
+            write_event "signature_hit" "critical" "signature_engine" "$context_json"
+            log_detector "signature_engine" "CRITICAL" "Known malicious hash detected: $file_hash in $file"
         fi
     fi
     
@@ -86,7 +96,13 @@ scan_file() {
         grep -o '"pattern":"[^"]*"' "$SIGNATURE_DB" 2>/dev/null | cut -d'"' -f4 | while IFS= read -r pattern; do
             if echo "$filename" | grep -qiE "$pattern"; then
                 matches=$((matches + 1))
-                echo "MATCH: Suspicious file pattern: $pattern"
+                
+                # Emit Event Spec v1.0.0 event
+                local escaped_file=$(echo "$file" | sed 's/"/\\"/g')
+                local escaped_pattern=$(echo "$pattern" | sed 's/"/\\"/g')
+                local context_json="{\"match_type\": \"file_pattern\", \"file\": \"$escaped_file\", \"pattern\": \"$escaped_pattern\"}"
+                write_event "signature_hit" "medium" "signature_engine" "$context_json"
+                log_detector "signature_engine" "WARNING" "Suspicious file pattern detected: $pattern in $file"
             fi
         done
     fi
@@ -97,7 +113,13 @@ scan_file() {
         grep -o '"pattern":"[^"]*"' "$SIGNATURE_DB" 2>/dev/null | cut -d'"' -f4 | while IFS= read -r pattern; do
             if echo "$file_content" | grep -qiE "$pattern"; then
                 matches=$((matches + 1))
-                echo "MATCH: Suspicious content pattern: $pattern"
+                
+                # Emit Event Spec v1.0.0 event
+                local escaped_file=$(echo "$file" | sed 's/"/\\"/g')
+                local escaped_pattern=$(echo "$pattern" | sed 's/"/\\"/g')
+                local context_json="{\"match_type\": \"content_pattern\", \"file\": \"$escaped_file\", \"pattern\": \"$escaped_pattern\"}"
+                write_event "signature_hit" "high" "signature_engine" "$context_json"
+                log_detector "signature_engine" "WARNING" "Suspicious content pattern detected: $pattern in $file"
             fi
         done
     fi
@@ -112,7 +134,7 @@ scan_directory() {
     local matches_found=0
     
     if [ ! -d "$target_dir" ]; then
-        warning "Directory not found: $target_dir"
+        log_detector "signature_engine" "ERROR" "Directory not found: $target_dir"
         return 1
     fi
     
@@ -122,14 +144,14 @@ scan_directory() {
         total_files=$((total_files + 1))
         if scan_file "$file" > /dev/null 2>&1; then
             matches_found=$((matches_found + 1))
-            warning "Suspicious file: $file"
+            log_detector "signature_engine" "WARNING" "Suspicious file: $file"
         fi
     done
     
     if [ $matches_found -eq 0 ]; then
-        success "Signature scan completed - no matches found"
+        log_detector "signature_engine" "INFO" "Signature scan completed - no matches found"
     else
-        warning "Signature scan completed - $matches_found match(es) found"
+        log_detector "signature_engine" "WARNING" "Signature scan completed - $matches_found match(es) found"
     fi
     
     return $matches_found

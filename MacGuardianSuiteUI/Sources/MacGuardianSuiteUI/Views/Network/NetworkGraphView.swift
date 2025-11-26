@@ -1,10 +1,25 @@
 import SwiftUI
 
 struct NetworkGraphView: View {
-    @StateObject private var liveService = LiveUpdateService.shared
+    @StateObject private var viewModel = NetworkGraphViewModel()
     @State private var networkGraph: NetworkGraphData?
     @State private var isLoading = false
     @State private var selectedNode: GraphNode?
+    
+    // High-performance graph nodes using adjacency list (O(V + E))
+    var realTimeNodes: [GraphNode] {
+        viewModel.nodes
+    }
+    
+    // High-performance graph edges using adjacency list (O(E))
+    var realTimeEdges: [GraphEdge] {
+        viewModel.edges
+    }
+    
+    // Statistics from graph builder
+    var graphStats: GraphStatistics? {
+        viewModel.statistics
+    }
     
     var body: some View {
         ScrollView {
@@ -35,78 +50,139 @@ struct NetworkGraphView: View {
                 
                 Divider()
                 
+                // Real-time Connection Status
+                HStack {
+                    ConnectionStatusIndicator(
+                        isConnected: LiveUpdateService.shared.isConnected,
+                        lastUpdate: LiveUpdateService.shared.lastUpdate,
+                        showLastUpdate: false
+                    )
+                    Spacer()
+                    Text("\(realTimeNodes.count) node(s), \(realTimeEdges.count) connection(s)")
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                
                 if isLoading {
                     ProgressView("Building network graph...")
                         .frame(maxWidth: .infinity)
                         .padding()
-                } else if let graph = networkGraph {
-                    // Statistics
-                    HStack(spacing: 16) {
-                        StatCard(
-                            title: "Nodes",
-                            value: "\(graph.nodes.count)",
-                            icon: "circle.grid.2x2",
-                            color: .themePurple
-                        )
-                        StatCard(
-                            title: "Connections",
-                            value: "\(graph.edges.count)",
-                            icon: "arrow.triangle.branch",
-                            color: .themePurpleLight
-                        )
-                        StatCard(
-                            title: "Processes",
-                            value: "\(graph.processCount)",
-                            icon: "cpu",
-                            color: .themePurple
-                        )
-                    }
-                    .padding()
-                    
-                    // Graph Visualization (simplified - would use actual graph library)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Network Connections")
-                            .font(.headline.bold())
-                        
-                        // Process nodes
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Processes")
-                                .font(.subheadline.bold())
-                                .foregroundColor(.themeTextSecondary)
-                            
-                            ForEach(graph.nodes.filter { $0.type == "process" }.prefix(10), id: \.id) { node in
-                                ProcessNodeRow(node: node) {
-                                    selectedNode = node
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color.themeDarkGray)
-                        .cornerRadius(12)
-                        
-                        // IP nodes
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("IP Addresses")
-                                .font(.subheadline.bold())
-                                .foregroundColor(.themeTextSecondary)
-                            
-                            ForEach(graph.nodes.filter { $0.type == "ip" }.prefix(10), id: \.id) { node in
-                                IPNodeRow(node: node) {
-                                    selectedNode = node
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color.themeDarkGray)
-                        .cornerRadius(12)
-                    }
-                    .padding()
                 } else {
-                    EmptyStateView(
-                        icon: "network",
-                        title: "No network graph",
-                        message: "Build graph to visualize network connections"
-                    )
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Statistics from high-performance graph builder
+                        if let stats = graphStats {
+                            HStack(spacing: 16) {
+                                StatCard(
+                                    title: "Nodes",
+                                    value: "\(stats.processCount + stats.ipCount)",
+                                    icon: "circle.grid.2x2",
+                                    color: .themePurple
+                                )
+                                StatCard(
+                                    title: "Connections",
+                                    value: "\(stats.connectionCount)",
+                                    icon: "arrow.triangle.branch",
+                                    color: .themePurpleLight
+                                )
+                                StatCard(
+                                    title: "Processes",
+                                    value: "\(stats.processCount)",
+                                    icon: "cpu",
+                                    color: .themePurple
+                                )
+                            }
+                            .padding()
+                        }
+                        
+                        // Real-time Network Graph Visualization
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Network Connections (Real-Time)")
+                                .font(.headline.bold())
+                            
+                            // Process nodes
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Processes")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.themeTextSecondary)
+                                
+                                if realTimeNodes.filter({ $0.type == "process" }).isEmpty {
+                                    Text("No active processes detected")
+                                        .font(.caption)
+                                        .foregroundColor(.themeTextSecondary)
+                                        .padding()
+                                } else {
+                                    ForEach(realTimeNodes.filter { $0.type == "process" }.prefix(10), id: \.id) { node in
+                                        ProcessNodeRow(node: node) {
+                                            selectedNode = node
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color.themeDarkGray)
+                            .cornerRadius(12)
+                            
+                            // IP nodes
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("IP Addresses")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.themeTextSecondary)
+                                
+                                if realTimeNodes.filter({ $0.type == "ip" }).isEmpty {
+                                    Text("No IP connections detected")
+                                        .font(.caption)
+                                        .foregroundColor(.themeTextSecondary)
+                                        .padding()
+                                } else {
+                                    ForEach(realTimeNodes.filter { $0.type == "ip" }.prefix(10), id: \.id) { node in
+                                        IPNodeRow(node: node) {
+                                            selectedNode = node
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color.themeDarkGray)
+                            .cornerRadius(12)
+                            
+                            // Recent Network Events
+                            if !networkEvents.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Recent Network Events")
+                                        .font(.headline.bold())
+                                    
+                                    ForEach(networkEvents.prefix(10)) { event in
+                                        NetworkEventRow(event: event)
+                                    }
+                                }
+                                .padding()
+                                .background(Color.themeDarkGray)
+                                .cornerRadius(12)
+                            }
+                        }
+                        .padding()
+                        
+                        // Static Graph (if available)
+                        if let graph = networkGraph {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Last Snapshot")
+                                    .font(.headline.bold())
+                                
+                                Text("Static snapshot from last refresh")
+                                    .font(.caption)
+                                    .foregroundColor(.themeTextSecondary)
+                            }
+                            .padding()
+                            .background(Color.themeBlack.opacity(0.5))
+                            .cornerRadius(8)
+                        } else if networkEvents.isEmpty {
+                            EmptyStateView(
+                                icon: "network",
+                                title: "No network events",
+                                message: "Network connections will appear here in real-time"
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -187,13 +263,23 @@ struct GraphNode: Codable, Identifiable {
 }
 
 struct GraphEdge: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let from: Int
     let to: Int
     let label: String?
     let port: Int?
     let localPort: Int?
     let remotePort: Int?
+    
+    init(from: Int, to: Int, label: String?, port: Int?, localPort: Int?, remotePort: Int?) {
+        self.id = UUID()
+        self.from = from
+        self.to = to
+        self.label = label
+        self.port = port
+        self.localPort = localPort
+        self.remotePort = remotePort
+    }
     
     enum CodingKeys: String, CodingKey {
         case from, to, label, port
@@ -232,15 +318,95 @@ struct ProcessNodeRow: View {
     }
 }
 
+// Real-time Network Event Row Component
+struct NetworkEventRow: View {
+    let event: MacGuardianEvent
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Severity indicator
+            Circle()
+                .fill(event.severityColor)
+                .frame(width: 12, height: 12)
+                .padding(.top, 4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.event_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.themeText)
+                    Spacer()
+                    if let date = event.date {
+                        Text(formatTime(date))
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                    }
+                }
+                
+                Text(event.message)
+                    .font(.subheadline)
+                    .foregroundColor(.themeTextSecondary)
+                
+                // Show connection details
+                HStack(spacing: 12) {
+                    if let process = event.context["process"]?.value as? String {
+                        HStack(spacing: 4) {
+                            Image(systemName: "cpu")
+                                .font(.caption2)
+                            Text(process)
+                                .font(.caption)
+                        }
+                        .foregroundColor(.themePurple.opacity(0.7))
+                    }
+                    
+                    if let ip = event.context["ip"]?.value as? String ?? event.context["remote_ip"]?.value as? String {
+                        HStack(spacing: 4) {
+                            Image(systemName: "globe")
+                                .font(.caption2)
+                            Text(ip)
+                                .font(.caption)
+                        }
+                        .foregroundColor(.themePurpleLight.opacity(0.7))
+                    }
+                    
+                    if let port = event.context["port"]?.value as? Int ?? event.context["remote_port"]?.value as? Int {
+                        HStack(spacing: 4) {
+                            Image(systemName: "network")
+                                .font(.caption2)
+                            Text("\(port)")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.themePurple.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.themePurple.opacity(0.1))
+                .cornerRadius(4)
+            }
+        }
+        .padding()
+        .background(Color.themeBlack.opacity(0.5))
+        .cornerRadius(8)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
 struct IPNodeRow: View {
     let node: GraphNode
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
-        HStack {
-            Image(systemName: "globe")
-                .foregroundColor(.themePurpleLight)
+            HStack {
+                Image(systemName: "globe")
+                    .foregroundColor(.themePurpleLight)
                 VStack(alignment: .leading) {
                     Text(node.label)
                         .font(.subheadline.bold())

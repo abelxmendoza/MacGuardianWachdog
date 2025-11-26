@@ -2,8 +2,48 @@ import SwiftUI
 
 struct PrivacyHeatmapView: View {
     @StateObject private var liveService = LiveUpdateService.shared
+    @StateObject private var heatmapModel = PrivacyHeatmapModel()
     @State private var privacyData: TCCPrivacyData?
     @State private var isLoading = false
+    
+    // Real-time privacy events
+    var privacyEvents: [MacGuardianEvent] {
+        liveService.privacyEvents
+    }
+    
+    // High-performance sparse matrix counts (O(1) lookups)
+    var fullDiskAccessCount: Int {
+        heatmapModel.totalCount(for: .fullDiskAccess)
+    }
+    
+    var screenRecordingCount: Int {
+        heatmapModel.totalCount(for: .screenRecording)
+    }
+    
+    var microphoneCount: Int {
+        heatmapModel.totalCount(for: .microphone)
+    }
+    
+    var cameraCount: Int {
+        heatmapModel.totalCount(for: .camera)
+    }
+    
+    var inputMonitoringCount: Int {
+        heatmapModel.totalCount(for: .inputMonitoring)
+    }
+    
+    var accessibilityCount: Int {
+        heatmapModel.totalCount(for: .accessibility)
+    }
+    
+    var newPermissionsCount: Int {
+        privacyEvents.filter { event in
+            if let changeType = event.context["change_type"]?.value as? String {
+                return changeType.lowercased() == "new"
+            }
+            return false
+        }.count
+    }
     
     var body: some View {
         ScrollView {
@@ -34,92 +74,172 @@ struct PrivacyHeatmapView: View {
                 
                 Divider()
                 
+                // Real-time Connection Status
+                HStack {
+                    ConnectionStatusIndicator(
+                        isConnected: liveService.isConnected,
+                        lastUpdate: liveService.lastUpdate,
+                        showLastUpdate: false
+                    )
+                    Spacer()
+                    Text("\(privacyEvents.count) real-time event(s)")
+                        .font(.caption)
+                        .foregroundColor(.themeTextSecondary)
+                }
+                .padding(.horizontal)
+                
                 if isLoading {
                     ProgressView("Loading privacy data...")
                         .frame(maxWidth: .infinity)
                         .padding()
-                } else if let data = privacyData {
-                    // Permission Heatmap
+                } else {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Permission Overview")
-                            .font(.headline.bold())
-                        
-                        PermissionCard(
-                            title: "Full Disk Access",
-                            count: data.fullDiskAccess,
-                            icon: "externaldrive.fill",
-                            color: heatmapColor(count: data.fullDiskAccess, isHighRisk: true)
-                        )
-                        
-                        PermissionCard(
-                            title: "Screen Recording",
-                            count: data.screenRecording,
-                            icon: "rectangle.on.rectangle",
-                            color: heatmapColor(count: data.screenRecording, isHighRisk: true)
-                        )
-                        
-                        PermissionCard(
-                            title: "Microphone",
-                            count: data.microphone,
-                            icon: "mic.fill",
-                            color: heatmapColor(count: data.microphone, isHighRisk: true)
-                        )
-                        
-                        PermissionCard(
-                            title: "Camera",
-                            count: data.camera,
-                            icon: "camera.fill",
-                            color: heatmapColor(count: data.camera, isHighRisk: true)
-                        )
-                        
-                        PermissionCard(
-                            title: "Input Monitoring",
-                            count: data.inputMonitoring,
-                            icon: "keyboard",
-                            color: heatmapColor(count: data.inputMonitoring, isHighRisk: true)
-                        )
-                        
-                        PermissionCard(
-                            title: "Accessibility",
-                            count: data.accessibility,
-                            icon: "figure.walk",
-                            color: heatmapColor(count: data.accessibility, isHighRisk: false)
-                        )
-                    }
-                    .padding()
-                    .background(Color.themeDarkGray)
-                    .cornerRadius(12)
-                    
-                    // Alerts
-                    if data.issuesFound > 0 {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Privacy Alerts")
+                        // Real-time Permission Heatmap
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Permission Overview (Real-Time)")
                                 .font(.headline.bold())
                             
-                            if data.newPermissions > 0 {
-                                AlertBubble(
-                                    message: "\(data.newPermissions) new permission(s) granted",
-                                    severity: .warning
-                                )
-                            }
+                            PermissionCard(
+                                title: "Full Disk Access",
+                                count: fullDiskAccessCount,
+                                icon: "externaldrive.fill",
+                                color: heatmapColor(count: fullDiskAccessCount, isHighRisk: true)
+                            )
+                            
+                            PermissionCard(
+                                title: "Screen Recording",
+                                count: screenRecordingCount,
+                                icon: "rectangle.on.rectangle",
+                                color: heatmapColor(count: screenRecordingCount, isHighRisk: true)
+                            )
+                            
+                            PermissionCard(
+                                title: "Microphone",
+                                count: microphoneCount,
+                                icon: "mic.fill",
+                                color: heatmapColor(count: microphoneCount, isHighRisk: true)
+                            )
+                            
+                            PermissionCard(
+                                title: "Camera",
+                                count: cameraCount,
+                                icon: "camera.fill",
+                                color: heatmapColor(count: cameraCount, isHighRisk: true)
+                            )
+                            
+                            PermissionCard(
+                                title: "Input Monitoring",
+                                count: inputMonitoringCount,
+                                icon: "keyboard",
+                                color: heatmapColor(count: inputMonitoringCount, isHighRisk: true)
+                            )
+                            
+                            PermissionCard(
+                                title: "Accessibility",
+                                count: accessibilityCount,
+                                icon: "figure.walk",
+                                color: heatmapColor(count: accessibilityCount, isHighRisk: false)
+                            )
                         }
                         .padding()
                         .background(Color.themeDarkGray)
                         .cornerRadius(12)
+                        
+                        // Real-time Alerts
+                        if newPermissionsCount > 0 {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Privacy Alerts")
+                                    .font(.headline.bold())
+                                
+                                AlertBubble(
+                                    message: "\(newPermissionsCount) new permission(s) granted",
+                                    severity: .warning
+                                )
+                            }
+                            .padding()
+                            .background(Color.themeDarkGray)
+                            .cornerRadius(12)
+                        }
+                        
+                        // Recent Privacy Events
+                        if !privacyEvents.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Recent Privacy Events")
+                                    .font(.headline.bold())
+                                
+                                ForEach(privacyEvents.prefix(10)) { event in
+                                    PrivacyEventRow(event: event)
+                                }
+                            }
+                            .padding()
+                            .background(Color.themeDarkGray)
+                            .cornerRadius(12)
+                        }
+                        
+                        // Static Audit Data (if available)
+                        if let data = privacyData {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Last Audit Results")
+                                    .font(.headline.bold())
+                                
+                                Text("Baseline data from last audit")
+                                    .font(.caption)
+                                    .foregroundColor(.themeTextSecondary)
+                            }
+                            .padding()
+                            .background(Color.themeBlack.opacity(0.5))
+                            .cornerRadius(8)
+                        } else if privacyEvents.isEmpty {
+                            EmptyStateView(
+                                icon: "hand.raised",
+                                title: "No privacy events",
+                                message: "Privacy permission changes will appear here in real-time"
+                            )
+                        }
                     }
-                } else {
-                    EmptyStateView(
-                        icon: "hand.raised",
-                        title: "No privacy data",
-                        message: "Run an audit to check privacy permissions"
-                    )
+                    .padding()
                 }
             }
         }
         .background(Color.themeBlack)
         .onAppear {
             loadPrivacyData()
+            updateHeatmapFromEvents()
         }
+        .onChange(of: privacyEvents.count) { _, _ in
+            updateHeatmapFromEvents()
+        }
+    
+    private func updateHeatmapFromEvents() {
+        // Update sparse heatmap from real-time events (O(n) where n = events)
+        for event in privacyEvents {
+            if let permissionStr = event.context["permission"]?.value as? String,
+               let appName = event.context["app"]?.value as? String ?? event.context["app_name"]?.value as? String {
+                
+                // Map permission string to PermissionType
+                let permission: PrivacyHeatmapModel.PermissionType?
+                if permissionStr.lowercased().contains("full disk") {
+                    permission = .fullDiskAccess
+                } else if permissionStr.lowercased().contains("screen recording") {
+                    permission = .screenRecording
+                } else if permissionStr.lowercased().contains("microphone") {
+                    permission = .microphone
+                } else if permissionStr.lowercased().contains("camera") {
+                    permission = .camera
+                } else if permissionStr.lowercased().contains("input monitoring") {
+                    permission = .inputMonitoring
+                } else if permissionStr.lowercased().contains("accessibility") {
+                    permission = .accessibility
+                } else {
+                    permission = nil
+                }
+                
+                if let permission = permission {
+                    heatmapModel.incrementPermission(permission: permission, appName: appName)
+                }
+            }
+        }
+    }
     }
     
     private func runAudit() {
@@ -302,5 +422,63 @@ struct AlertBubble: View {
 
 enum AlertSeverity {
     case critical, warning, info
+}
+
+// Real-time Privacy Event Row Component
+struct PrivacyEventRow: View {
+    let event: MacGuardianEvent
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Severity indicator
+            Circle()
+                .fill(event.severityColor)
+                .frame(width: 12, height: 12)
+                .padding(.top, 4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.event_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.themeText)
+                    Spacer()
+                    if let date = event.date {
+                        Text(formatTime(date))
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                    }
+                }
+                
+                Text(event.message)
+                    .font(.subheadline)
+                    .foregroundColor(.themeTextSecondary)
+                
+                // Show permission type if available
+                if let permission = event.context["permission"]?.value as? String {
+                    HStack {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                        Text(permission)
+                            .font(.caption)
+                    }
+                    .foregroundColor(.themePurple.opacity(0.7))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.themePurple.opacity(0.1))
+                    .cornerRadius(4)
+                }
+            }
+        }
+        .padding()
+        .background(Color.themeBlack.opacity(0.5))
+        .cornerRadius(8)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
 }
 

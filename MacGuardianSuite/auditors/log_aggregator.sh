@@ -3,6 +3,7 @@
 # ===============================
 # Log Aggregator
 # Aggregates logs from multiple sources
+# Event Spec v1.0.0 compliant
 # ===============================
 
 set -euo pipefail
@@ -10,7 +11,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-source "$SUITE_DIR/core/utils.sh" 2>/dev/null || true
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
+source "$SUITE_DIR/daemons/event_writer.sh" 2>/dev/null || true
 
 LOG_DIR="$HOME/.macguardian/logs"
 AGGREGATED_LOG="$LOG_DIR/aggregated_$(date +%Y%m%d_%H%M%S).json"
@@ -26,14 +31,46 @@ aggregate_logs() {
     # Use Python collector if available
     if [ -f "$UNIFIED_LOG_PYTHON" ] && command -v python3 &> /dev/null; then
         python3 "$UNIFIED_LOG_PYTHON" --hours "$hours" --output "$output_file" 2>/dev/null || {
-            warning "Python log aggregator failed, using fallback"
+            log_auditor "log_aggregator" "WARNING" "Python log aggregator failed, using fallback"
             aggregate_logs_fallback "$output_file" "$hours"
         }
     else
         aggregate_logs_fallback "$output_file" "$hours"
     fi
     
-    success "Logs aggregated: $output_file"
+    # Parse logs for security events
+    parse_security_events "$output_file" "$hours"
+    
+    log_auditor "log_aggregator" "INFO" "Logs aggregated: $output_file"
+}
+
+# Parse security events from logs
+parse_security_events() {
+    local log_file="$1"
+    local hours="$2"
+    
+    # Check for failed SSH login attempts
+    if command -v log &> /dev/null; then
+        local failed_ssh=$(log show --last "${hours}h" --predicate 'process == "sshd" AND eventMessage CONTAINS "Failed"' 2>/dev/null | grep -i "failed" | wc -l | tr -d ' ' || echo "0")
+        if [ "$failed_ssh" -gt 0 ]; then
+            local context_json="{\"event_type\": \"ssh_login_failure\", \"count\": $failed_ssh, \"time_window_hours\": $hours}"
+            write_event "ids_alert" "medium" "log_aggregator" "$context_json"
+        fi
+        
+        # Check for sudo privilege escalations
+        local sudo_events=$(log show --last "${hours}h" --predicate 'process == "sudo"' 2>/dev/null | grep -i "sudo" | wc -l | tr -d ' ' || echo "0")
+        if [ "$sudo_events" -gt 10 ]; then
+            local context_json="{\"event_type\": \"sudo_escalation\", \"count\": $sudo_events, \"time_window_hours\": $hours}"
+            write_event "ids_alert" "medium" "log_aggregator" "$context_json"
+        fi
+        
+        # Check for kernel panics
+        local panics=$(log show --last "${hours}h" --predicate 'process == "kernel" AND eventMessage CONTAINS "panic"' 2>/dev/null | grep -i "panic" | wc -l | tr -d ' ' || echo "0")
+        if [ "$panics" -gt 0 ]; then
+            local context_json="{\"event_type\": \"kernel_panic\", \"count\": $panics, \"time_window_hours\": $hours}"
+            write_event "ids_alert" "high" "log_aggregator" "$context_json"
+        fi
+    fi
 }
 
 # Fallback aggregation

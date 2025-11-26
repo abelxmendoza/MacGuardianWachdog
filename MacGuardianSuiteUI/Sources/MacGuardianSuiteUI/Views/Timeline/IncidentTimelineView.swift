@@ -1,10 +1,9 @@
 import SwiftUI
 
 struct IncidentTimelineView: View {
-    @StateObject private var liveService = LiveUpdateService.shared
+    @StateObject private var viewModel = TimelineViewModel()
     @State private var timelineData: TimelineData?
     @State private var selectedFilter: TimelineFilter = .all
-    @State private var isLoading = false
     
     enum TimelineFilter: String, CaseIterable {
         case all = "All"
@@ -16,9 +15,13 @@ struct IncidentTimelineView: View {
         case ids = "IDS"
     }
     
-    var filteredEvents: [TimelineEvent] {
-        guard let timeline = timelineData else { return [] }
-        var events = timeline.timeline
+    // Real-time events from optimized view model
+    var timelineEvents: [MacGuardianEvent] {
+        viewModel.events
+    }
+    
+    var filteredEvents: [MacGuardianEvent] {
+        var events = timelineEvents
         
         switch selectedFilter {
         case .all:
@@ -28,16 +31,28 @@ struct IncidentTimelineView: View {
         case .high:
             events = events.filter { $0.severity.lowercased() == "high" }
         case .process:
-            events = events.filter { $0.type == "process" }
+            events = events.filter { $0.event_type == "process_anomaly" }
         case .network:
-            events = events.filter { $0.type == "network" }
+            events = events.filter { $0.event_type == "network_connection" }
         case .filesystem:
-            events = events.filter { $0.type == "fs" || $0.type == "filesystem" }
+            events = events.filter { $0.event_type == "file_integrity_change" }
         case .ids:
-            events = events.filter { $0.type == "ids" || $0.type == "correlation" }
+            events = events.filter { 
+                $0.event_type == "ids_alert" || 
+                $0.event_type == "incident.detected" 
+            }
         }
         
         return events
+    }
+    
+    var severityCounts: [String: Int] {
+        var counts: [String: Int] = [:]
+        for event in timelineEvents {
+            let severity = event.severity.lowercased()
+            counts[severity, default: 0] += 1
+        }
+        return counts
     }
     
     var body: some View {
@@ -62,7 +77,7 @@ struct IncidentTimelineView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.themePurple)
-                .disabled(isLoading)
+                .disabled(viewModel.isLoading)
             }
             .padding()
             
@@ -77,58 +92,67 @@ struct IncidentTimelineView: View {
             .pickerStyle(.segmented)
             .padding()
             
+            // Real-time Connection Status
+            ConnectionStatusIndicator(
+                isConnected: LiveUpdateService.shared.isConnected,
+                lastUpdate: LiveUpdateService.shared.lastUpdate
+            )
+            
             // Timeline
-            if isLoading {
+            if viewModel.isLoading {
                 ProgressView("Loading timeline...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let timeline = timelineData {
+            } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         // Statistics
                         HStack(spacing: 16) {
                             StatCard(
                                 title: "Total Events",
-                                value: "\(timeline.totalEvents)",
+                                value: "\(timelineEvents.count)",
                                 icon: "list.bullet",
                                 color: .themePurple
                             )
                             StatCard(
                                 title: "Critical",
-                                value: "\(timeline.severityCounts["critical"] ?? 0)",
+                                value: "\(severityCounts["critical"] ?? 0)",
                                 icon: "exclamationmark.triangle.fill",
-                                color: .red
+                                color: Color(red: 0.9, green: 0.1, blue: 0.3)
                             )
                             StatCard(
                                 title: "High",
-                                value: "\(timeline.severityCounts["high"] ?? 0)",
+                                value: "\(severityCounts["high"] ?? 0)",
                                 icon: "exclamationmark.circle.fill",
-                                color: .orange
+                                color: Color(red: 0.8, green: 0.3, blue: 0.5)
                             )
                         }
                         .padding()
                         
-                        // Events grouped by date
-                        ForEach(groupedEvents, id: \.date) { group in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(group.date)
-                                    .font(.headline.bold())
-                                    .foregroundColor(.themeTextSecondary)
-                                    .padding(.horizontal)
-                                
-                                ForEach(group.events) { event in
-                                    TimelineEventRow(event: event)
+                        // Real-time Events grouped by date
+                        if filteredEvents.isEmpty {
+                            EmptyStateView(
+                                icon: "clock",
+                                title: "No events",
+                                message: "Security events will appear here in real-time"
+                            )
+                            .padding()
+                        } else {
+                            ForEach(groupedRealTimeEvents, id: \.date) { group in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(group.date)
+                                        .font(.headline.bold())
+                                        .foregroundColor(.themeTextSecondary)
+                                        .padding(.horizontal)
+                                    
+                                    ForEach(group.events) { event in
+                                        RealTimeTimelineEventRow(event: event)
+                                    }
                                 }
                             }
                         }
                     }
                     .padding()
                 }
-            } else {
-                EmptyStateView(
-                    icon: "clock",
-                    title: "No timeline data",
-                    message: "Load timeline to view security events"
-                )
             }
         }
         .background(Color.themeBlack)
@@ -137,19 +161,25 @@ struct IncidentTimelineView: View {
         }
     }
     
-    private var groupedEvents: [EventGroup] {
+    private var groupedRealTimeEvents: [RealTimeEventGroup] {
         let events = filteredEvents
         let grouped = Dictionary(grouping: events) { event in
-            event.time.prefix(10) // Date part
+            event.timestamp.prefix(10) // Date part (YYYY-MM-DD)
         }
         
         return grouped.map { date, events in
-            EventGroup(date: String(date), events: events)
+            RealTimeEventGroup(date: String(date), events: events)
         }.sorted { $0.date > $1.date }
     }
     
+    private func formatTime(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
     private func loadTimeline() {
-        isLoading = true
+        viewModel.isLoading = true
         DispatchQueue.global(qos: .userInitiated).async {
             let timelinePath = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".macguardian/timeline.json")
@@ -158,7 +188,7 @@ struct IncidentTimelineView: View {
                let timeline = try? JSONDecoder().decode(TimelineData.self, from: data) {
                 DispatchQueue.main.async {
                     self.timelineData = timeline
-                    self.isLoading = false
+                    self.viewModel.isLoading = false
                 }
             } else {
                 // Try to generate timeline
@@ -180,16 +210,16 @@ struct IncidentTimelineView: View {
                        let timeline = try? JSONDecoder().decode(TimelineData.self, from: data) {
                         DispatchQueue.main.async {
                             self.timelineData = timeline
-                            self.isLoading = false
+                            self.viewModel.isLoading = false
                         }
                     } else {
                         DispatchQueue.main.async {
-                            self.isLoading = false
+                            self.viewModel.isLoading = false
                         }
                     }
                 } catch {
                     DispatchQueue.main.async {
-                        self.isLoading = false
+                        self.viewModel.isLoading = false
                     }
                 }
             }
@@ -202,7 +232,7 @@ struct TimelineData: Codable {
     let totalEvents: Int
     let eventTypes: [String: Int]
     let severityCounts: [String: Int]
-    let timeline: [TimelineEvent]
+    let timeline: [TimelineEventItem]
     
     enum CodingKeys: String, CodingKey {
         case timestamp, totalEvents = "total_events"
@@ -212,22 +242,31 @@ struct TimelineData: Codable {
     }
 }
 
-struct TimelineEvent: Codable, Identifiable {
-    let id = UUID()
+struct TimelineEventItem: Codable, Identifiable {
+    let id: String
     let time: String
     let type: String
     let severity: String
     let message: String
     let details: [String: AnyCodable]
+    
+    init(id: String = UUID().uuidString, time: String, type: String, severity: String, message: String, details: [String: AnyCodable] = [:]) {
+        self.id = id
+        self.time = time
+        self.type = type
+        self.severity = severity
+        self.message = message
+        self.details = details
+    }
 }
 
 struct EventGroup {
     let date: String
-    let events: [TimelineEvent]
+    let events: [TimelineEventItem]
 }
 
 struct TimelineEventRow: View {
-    let event: TimelineEvent
+    let event: TimelineEventItem
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -296,5 +335,100 @@ struct TimelineEventRow: View {
         }
         return time
     }
+}
+
+// Real-time Timeline Event Row Component
+struct RealTimeTimelineEventRow: View {
+    let event: MacGuardianEvent
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Severity indicator
+            Circle()
+                .fill(event.severityColor)
+                .frame(width: 12, height: 12)
+                .padding(.top, 4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.event_type.replacingOccurrences(of: "_", with: " ").uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.themeTextSecondary)
+                    Spacer()
+                    if let date = event.date {
+                        Text(formatTime(date))
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                    } else {
+                        Text(formatTime(event.timestamp))
+                            .font(.caption)
+                            .foregroundColor(.themeTextSecondary)
+                    }
+                }
+                
+                Text(event.message)
+                    .font(.subheadline)
+                    .foregroundColor(.themeText)
+                
+                if event.severity.lowercased() != "info" && event.severity.lowercased() != "low" {
+                    HStack {
+                        Image(systemName: severityIcon)
+                            .font(.caption2)
+                        Text(event.severity.uppercased())
+                            .font(.caption2.bold())
+                    }
+                    .foregroundColor(event.severityColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(event.severityColor.opacity(0.2))
+                    .cornerRadius(4)
+                }
+                
+                // Show source
+                HStack {
+                    Image(systemName: "tag.fill")
+                        .font(.caption2)
+                    Text(event.source)
+                        .font(.caption)
+                }
+                .foregroundColor(.themePurple.opacity(0.7))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.themePurple.opacity(0.1))
+                .cornerRadius(4)
+            }
+        }
+        .padding()
+        .background(Color.themeDarkGray)
+        .cornerRadius(10)
+    }
+    
+    private var severityIcon: String {
+        switch event.severity.lowercased() {
+        case "critical": return "exclamationmark.triangle.fill"
+        case "high": return "exclamationmark.circle.fill"
+        default: return "info.circle.fill"
+        }
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(_ timestamp: String) -> String {
+        // Extract time from ISO8601 timestamp
+        if timestamp.count > 10 {
+            return String(timestamp.dropFirst(11).prefix(5)) // HH:MM
+        }
+        return timestamp
+    }
+}
+
+struct RealTimeEventGroup {
+    let date: String
+    let events: [MacGuardianEvent]
 }
 

@@ -63,3 +63,63 @@ rules:
     time_window: 300
     action: create_incident
 
+  # Rule 6: SSH key change + New admin account
+  - name: "SSH Key Change + New Admin"
+    description: "SSH key changed and new admin account created"
+    severity: critical
+    conditions:
+      - type: ssh
+        key_changed: true
+      - type: user_account
+        admin_added: true
+    time_window: 600
+    action: create_incident
+
+  # Rule 7: New LaunchDaemon + Cron change
+  - name: "Persistence Mechanism Change"
+    description: "New LaunchDaemon and cron modification detected"
+    severity: high
+    conditions:
+      - type: process
+        launchdaemon: true
+      - type: cron
+        modified: true
+    time_window: 300
+    action: create_incident
+
+  # Rule 8: High network activity + Unknown IP
+  - name: "High Network Activity + Unknown IP"
+    description: "High network activity to unknown IP addresses"
+    severity: medium
+    conditions:
+      - type: network
+        connection_count: "> 10"
+      - type: network
+        unknown_ip: true
+    time_window: 60
+    action: alert
+
+  # Rule 9: FSEvents spike + Unknown process
+  - name: "File System Spike + Unknown Process"
+    description: "File system activity spike with unknown process"
+    severity: high
+    conditions:
+      - type: filesystem
+        count: "> 20"
+      - type: process
+        unknown: true
+    time_window: 30
+    action: create_incident
+
+  # Rule 10: User account change + Cron modification
+  - name: "Account Change + Cron Modification"
+    description: "User account change and cron modification"
+    severity: high
+    conditions:
+      - type: user_account
+        change: true
+      - type: cron
+        modified: true
+    time_window: 300
+    action: create_incident
+

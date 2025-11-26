@@ -127,6 +127,16 @@ struct ContentView: View {
                 case .settings:
                     SettingsView()
                         .environmentObject(workspace)
+                case .sshSecurity:
+                    SSHSecurityView()
+                case .userAccountSecurity:
+                    UserAccountSecurityView()
+                case .privacyHeatmap:
+                    PrivacyHeatmapView()
+                case .networkGraph:
+                    NetworkGraphView()
+                case .incidentTimeline:
+                    IncidentTimelineView()
                 }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

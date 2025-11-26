@@ -11,6 +11,8 @@ struct MacGuardianSuiteUIApp: App {
                 .onAppear {
                     // Initialize EventPipeline to start listening for events
                     _ = EventPipeline.shared
+                    // Start LiveUpdateService for real-time WebSocket events
+                    LiveUpdateService.shared.start()
                 }
         }
         .windowStyle(.automatic)

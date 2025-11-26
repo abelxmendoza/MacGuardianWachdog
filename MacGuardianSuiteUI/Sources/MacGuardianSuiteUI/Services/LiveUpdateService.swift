@@ -1,49 +1,70 @@
 import Foundation
 import Combine
 import Network
+import SwiftUI
 
-/// Standardized event structure matching JSON schema
+/// Standardized event structure matching Event Spec v1.0.0
 struct MacGuardianEvent: Codable, Identifiable {
-    let id: UUID
-    let timestamp: String
-    let type: String
+    let id: String  // Maps from event_id (UUID string)
+    let event_type: String  // Event Spec v1.0.0 field name
     let severity: String
+    let timestamp: String
     let source: String
-    let message: String
     let context: [String: AnyCodable]
     
     enum CodingKeys: String, CodingKey {
-        case timestamp, type, severity, source, message, context
+        case id = "event_id"
+        case event_type
+        case severity
+        case timestamp
+        case source
+        case context
     }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = UUID()
-        self.timestamp = try container.decode(String.self, forKey: .timestamp)
-        self.type = try container.decode(String.self, forKey: .type)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.event_type = try container.decode(String.self, forKey: .event_type)
         self.severity = try container.decode(String.self, forKey: .severity)
+        self.timestamp = try container.decode(String.self, forKey: .timestamp)
         self.source = try container.decode(String.self, forKey: .source)
-        self.message = try container.decode(String.self, forKey: .message)
         self.context = try container.decode([String: AnyCodable].self, forKey: .context)
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(timestamp, forKey: .timestamp)
-        try container.encode(type, forKey: .type)
+        try container.encode(id, forKey: .id)
+        try container.encode(event_type, forKey: .event_type)
         try container.encode(severity, forKey: .severity)
+        try container.encode(timestamp, forKey: .timestamp)
         try container.encode(source, forKey: .source)
-        try container.encode(message, forKey: .message)
         try container.encode(context, forKey: .context)
+    }
+    
+    // Computed property for backward compatibility
+    var type: String {
+        event_type
+    }
+    
+    // Extract message from context if available
+    var message: String {
+        if let msg = context["message"]?.value as? String {
+            return msg
+        }
+        // Try common message fields
+        if let msg = context["raw_message"]?.value as? String {
+            return msg
+        }
+        // Generate message from event type
+        return "\(event_type) event detected"
     }
     
     var severityColor: Color {
         switch severity.lowercased() {
-        case "critical": return .red
-        case "high": return .orange
-        case "warning": return .yellow
-        case "medium": return .yellow
-        default: return .blue
+        case "critical": return Color(red: 0.9, green: 0.1, blue: 0.3) // Muted red-purple
+        case "high": return Color(red: 0.8, green: 0.3, blue: 0.5) // Purple-red blend
+        case "warning", "medium": return .themePurpleLight // Lighter purple
+        default: return .themePurple // Base purple
         }
     }
     
@@ -164,7 +185,7 @@ class WebSocketClient: ObservableObject {
     }
     
     private func handleMessage(_ text: String) {
-        // Message handling will be done by LiveUpdateService
+        LiveUpdateService.shared.handleWebSocketMessage(text)
     }
     
     private func handleError(_ error: Error) {
@@ -199,23 +220,117 @@ class WebSocketClient: ObservableObject {
 }
 
 /// Live update service for real-time event streaming
+/// Uses high-performance RingBuffer and EventIndex with Swift Actors
+/// Implements batching to reduce UI update storms
 @MainActor
 class LiveUpdateService: ObservableObject {
     static let shared = LiveUpdateService()
     
-    @Published var events: [MacGuardianEvent] = []
+    // High-performance data structures
+    private let ringBuffer: RingBuffer<MacGuardianEvent>
+    private let eventIndex: EventIndex
+    private let timelineHeap: TimelineHeap
+    
     @Published var isConnected = false
     @Published var connectionError: String?
     @Published var lastUpdate: Date?
     
     private let webSocketClient: WebSocketClient
-    private let maxCachedEvents = 100
     private let eventBusURL = URL(string: "ws://localhost:9765")!
+    private let decoder = JSONDecoder()
+    
+    // Batch processing
+    private var pendingEvents: [MacGuardianEvent] = []
+    private var batchTask: Task<Void, Never>?
+    private let batchInterval: TimeInterval = 0.1 // 100ms batching
+    
+    // Cached events snapshot (updated in batches) - @Published for SwiftUI
+    @Published private(set) var events: [MacGuardianEvent] = []
+    
+    // Published filtered event arrays (updated from actors on main thread)
+    @Published private(set) var criticalEvents: [MacGuardianEvent] = []
+    @Published private(set) var highSeverityEvents: [MacGuardianEvent] = []
+    @Published private(set) var processEvents: [MacGuardianEvent] = []
+    @Published private(set) var networkEvents: [MacGuardianEvent] = []
+    @Published private(set) var filesystemEvents: [MacGuardianEvent] = []
+    @Published private(set) var sshEvents: [MacGuardianEvent] = []
+    @Published private(set) var userAccountEvents: [MacGuardianEvent] = []
+    @Published private(set) var privacyEvents: [MacGuardianEvent] = []
+    @Published private(set) var cronEvents: [MacGuardianEvent] = []
+    @Published private(set) var idsEvents: [MacGuardianEvent] = []
+    @Published private(set) var ransomwareEvents: [MacGuardianEvent] = []
+    @Published private(set) var signatureEvents: [MacGuardianEvent] = []
+    @Published private(set) var recentEvents: [MacGuardianEvent] = []
+    @Published private(set) var reverseChronologicalEvents: [MacGuardianEvent] = []
     
     private init() {
+        // Initialize high-performance structures
+        self.ringBuffer = RingBuffer<MacGuardianEvent>(capacity: 1000)
+        self.eventIndex = EventIndex(maxEventsPerType: 500)
+        self.timelineHeap = TimelineHeap(maxSize: 10000)
+        
         self.webSocketClient = WebSocketClient(url: eventBusURL)
         setupWebSocketObservers()
+        setupPerformanceObservers()
+        startBatchProcessor()
     }
+    
+    private func setupPerformanceObservers() {
+        // Observe ring buffer updates and refresh published properties
+        ringBuffer.$didUpdate
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.lastUpdate = Date()
+                    await self.refreshPublishedEvents()
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Observe event index updates
+        eventIndex.$didUpdate
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.lastUpdate = Date()
+                    await self.refreshPublishedEvents()
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Observe timeline heap updates
+        timelineHeap.$didUpdate
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    await self.refreshPublishedEvents()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    /// Refresh all published event arrays from actors (called on MainActor)
+    @MainActor
+    private func refreshPublishedEvents() async {
+        // Update all filtered arrays from actors
+        events = await ringBuffer.snapshot()
+        criticalEvents = events.filter { $0.severity.lowercased() == "critical" }
+        highSeverityEvents = events.filter { $0.severity.lowercased() == "high" }
+        processEvents = await eventIndex.events(forType: "process_anomaly")
+        networkEvents = await eventIndex.events(forType: "network_connection")
+        filesystemEvents = await eventIndex.events(forType: "file_integrity_change")
+        sshEvents = await eventIndex.events(forTypes: ["ssh_key_change", "ssh_config_change", "ssh_login_failure"])
+        userAccountEvents = await eventIndex.events(forType: "user_account_change")
+        privacyEvents = await eventIndex.events(forType: "tcc_permission_change")
+        cronEvents = await eventIndex.events(forType: "cron_modification")
+        idsEvents = await eventIndex.events(forTypes: ["ids_alert", "incident.detected"])
+        ransomwareEvents = await eventIndex.events(forType: "ransomware_activity")
+        signatureEvents = await eventIndex.events(forType: "signature_hit")
+        recentEvents = await ringBuffer.recent(50)
+        reverseChronologicalEvents = timelineHeap.getAllReverseChronological()
+    }
+    
+    private var cancellables = Set<AnyCancellable>()
     
     func start() {
         webSocketClient.connect()
@@ -223,6 +338,7 @@ class LiveUpdateService: ObservableObject {
     
     func stop() {
         webSocketClient.disconnect()
+        batchTask?.cancel()
     }
     
     private func setupWebSocketObservers() {
@@ -234,56 +350,112 @@ class LiveUpdateService: ObservableObject {
             .assign(to: &$connectionError)
     }
     
+    /// Process WebSocket message with batching
     func handleWebSocketMessage(_ text: String) {
-        guard let data = text.data(using: .utf8),
-              let event = try? JSONDecoder().decode(MacGuardianEvent.self, from: data) else {
-            return
+        // Process decoding in detached task to avoid blocking UI
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            
+            guard let data = text.data(using: .utf8) else {
+                print("⚠️ Failed to convert message to data")
+                return
+            }
+            
+            do {
+                let event = try self.decoder.decode(MacGuardianEvent.self, from: data)
+                
+                // Add to pending batch
+                await self.addToBatch(event)
+            } catch {
+                print("⚠️ Failed to decode event: \(error)")
+                print("⚠️ Raw message: \(text.prefix(200))")
+            }
+        }
+    }
+    
+    /// Add event to batch queue
+    private func addToBatch(_ event: MacGuardianEvent) async {
+        await MainActor.run {
+            pendingEvents.append(event)
+        }
+    }
+    
+    /// Start batch processor (flushes every 100ms)
+    private func startBatchProcessor() {
+        batchTask = Task { [weak self] in
+            guard let self = self else { return }
+            
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(batchInterval * 1_000_000_000))
+                
+                await self.flushBatch()
+            }
+        }
+    }
+    
+    /// Flush pending events batch
+    private func flushBatch() async {
+        let batch = await MainActor.run {
+            let batch = pendingEvents
+            pendingEvents.removeAll()
+            return batch
         }
         
-        DispatchQueue.main.async {
-            self.events.insert(event, at: 0)
-            if self.events.count > self.maxCachedEvents {
-                self.events.removeLast()
+        guard !batch.isEmpty else { return }
+        
+        // Process batch in parallel
+        await withTaskGroup(of: Void.self) { group in
+            for event in batch {
+                group.addTask { [weak self] in
+                    guard let self = self else { return }
+                    
+                    // High-performance insertion: O(1) operations
+                    await self.ringBuffer.push(event)
+                    await self.eventIndex.insert(event)
+                    await self.timelineHeap.insert(event)
+                }
             }
-            self.lastUpdate = Date()
+        }
+        
+        // Update cached snapshot and refresh all published properties
+        await MainActor.run {
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                await self.refreshPublishedEvents()
+            }
         }
     }
     
-    // Filtered event accessors
-    var criticalEvents: [MacGuardianEvent] {
-        events.filter { $0.severity.lowercased() == "critical" }
+    // Async accessors for advanced use cases (backward compatibility)
+    func events(forType type: String) async -> [MacGuardianEvent] {
+        return await eventIndex.events(forType: type)  // O(1) lookup
     }
     
-    var highSeverityEvents: [MacGuardianEvent] {
-        events.filter { $0.severity.lowercased() == "high" }
+    func events(forSeverity severity: String) async -> [MacGuardianEvent] {
+        // Filter all events by severity (could be optimized with severity index)
+        let allEvents = await ringBuffer.snapshot()
+        return allEvents.filter { $0.severity.lowercased() == severity.lowercased() }
     }
     
-    var processEvents: [MacGuardianEvent] {
-        events.filter { $0.type == "process" }
+    // Direct access to performance structures (for advanced use cases)
+    var index: EventIndex {
+        return eventIndex
     }
     
-    var networkEvents: [MacGuardianEvent] {
-        events.filter { $0.type == "network" }
+    var buffer: RingBuffer<MacGuardianEvent> {
+        return ringBuffer
     }
     
-    var filesystemEvents: [MacGuardianEvent] {
-        events.filter { $0.type == "fs" || $0.type == "filesystem" }
+    var timeline: TimelineHeap {
+        return timelineHeap
     }
     
-    var idsEvents: [MacGuardianEvent] {
-        events.filter { $0.type == "ids" || $0.type == "correlation" }
-    }
-    
-    var recentEvents: [MacGuardianEvent] {
-        Array(events.prefix(50))
-    }
-    
-    func events(forType type: String) -> [MacGuardianEvent] {
-        events.filter { $0.type == type }
-    }
-    
-    func events(forSeverity severity: String) -> [MacGuardianEvent] {
-        events.filter { $0.severity.lowercased() == severity.lowercased() }
+    // Clear all events from memory
+    func clearEvents() async {
+        ringBuffer.clear()
+        eventIndex.clear()
+        timelineHeap.clear()
+        await refreshPublishedEvents()
     }
 }
 

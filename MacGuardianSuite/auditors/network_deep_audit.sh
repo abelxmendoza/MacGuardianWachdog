@@ -3,6 +3,7 @@
 # ===============================
 # Network Deep Audit
 # Advanced network security monitoring
+# Event Spec v1.0.0 compliant
 # ===============================
 
 set -euo pipefail
@@ -10,8 +11,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-source "$SUITE_DIR/core/utils.sh" 2>/dev/null || true
-source "$SUITE_DIR/core/config.sh" 2>/dev/null || true
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/privilege_check.sh" 2>/dev/null || true
+source "$SUITE_DIR/daemons/event_writer.sh" 2>/dev/null || true
 
 BASELINE_DIR="$HOME/.macguardian/baselines"
 NETWORK_BASELINE="$BASELINE_DIR/network_baseline.json"
@@ -23,7 +28,7 @@ mkdir -p "$BASELINE_DIR" "$(dirname "$AUDIT_OUTPUT")"
 # Initialize network baseline
 init_network_baseline() {
     if [ ! -f "$NETWORK_BASELINE" ]; then
-        log_message "INFO" "Creating network baseline..."
+        log_auditor "network_deep_audit" "INFO" "Creating network baseline..."
         
         local connections="[]"
         local dns_servers="[]"
@@ -69,7 +74,7 @@ init_network_baseline() {
 }
 EOF
         
-        success "Network baseline created"
+        log_auditor "network_deep_audit" "INFO" "Network baseline created"
     fi
 }
 
@@ -103,7 +108,11 @@ audit_network_deep() {
         
         if [ "$current_dns" != "$baseline_dns" ]; then
             issues=$((issues + 1))
-            warning "DNS servers changed"
+            
+            # Emit Event Spec v1.0.0 event
+            local context_json="{\"change_type\": \"dns_servers_changed\", \"baseline_dns\": $baseline_dns, \"current_dns\": $current_dns}"
+            write_event "network_connection" "medium" "network_deep_audit" "$context_json"
+            log_auditor "network_deep_audit" "WARNING" "DNS servers changed"
         fi
     fi
     
@@ -114,7 +123,11 @@ audit_network_deep() {
         
         if [ -n "$baseline_route_hash" ] && [ "$current_route_hash" != "$baseline_route_hash" ]; then
             issues=$((issues + 1))
-            warning "Routing table modified"
+            
+            # Emit Event Spec v1.0.0 event
+            local context_json="{\"change_type\": \"routing_table_modified\", \"old_hash\": \"$baseline_route_hash\", \"new_hash\": \"$current_route_hash\"}"
+            write_event "network_connection" "high" "network_deep_audit" "$context_json"
+            log_auditor "network_deep_audit" "WARNING" "Routing table modified"
         fi
     fi
     
@@ -125,7 +138,11 @@ audit_network_deep() {
         
         if [ -n "$baseline_arp_hash" ] && [ "$current_arp_hash" != "$baseline_arp_hash" ]; then
             issues=$((issues + 1))
-            warning "ARP table modified"
+            
+            # Emit Event Spec v1.0.0 event
+            local context_json="{\"change_type\": \"arp_table_modified\", \"old_hash\": \"$baseline_arp_hash\", \"new_hash\": \"$current_arp_hash\"}"
+            write_event "network_connection" "medium" "network_deep_audit" "$context_json"
+            log_auditor "network_deep_audit" "WARNING" "ARP table modified"
         fi
     fi
     
@@ -144,6 +161,10 @@ audit_network_deep() {
                 local threat_match=$(jq -r ".[] | select(.type == \"ip\" and .value == \"$remote_ip\") | .value" "$THREAT_INTEL_DB" 2>/dev/null | head -1)
                 if [ -n "$threat_match" ]; then
                     suspicious_conns=$((suspicious_conns + 1))
+                    
+                    # Emit Event Spec v1.0.0 event
+                    local context_json="{\"change_type\": \"suspicious_connection\", \"remote_ip\": \"$remote_ip\", \"threat_source\": \"threat_intel_db\"}"
+                    write_event "network_connection" "critical" "network_deep_audit" "$context_json"
                 fi
             fi
         done
@@ -161,13 +182,18 @@ audit_network_deep() {
 EOF
     
     if [ $issues -eq 0 ]; then
-        success "Network deep audit completed - no issues found"
+        log_auditor "network_deep_audit" "INFO" "Network deep audit completed - no issues found"
     else
-        warning "Network deep audit completed - $issues issue(s) found"
+        log_auditor "network_deep_audit" "WARNING" "Network deep audit completed - $issues issue(s) found"
     fi
     
     return $issues
 }
+
+# Check privileges on load
+if ! check_privileges "audit"; then
+    log_auditor "network_deep_audit" "WARNING" "Some network audit checks may require sudo privileges"
+fi
 
 # Main execution
 if [ "${1:-audit}" = "baseline" ]; then

@@ -56,6 +56,9 @@ struct DashboardView: View {
                 // Quick Actions
                 QuickActionsCard(workspace: workspace)
                 
+                // Security Dashboards Quick Access
+                SecurityDashboardsCard(workspace: workspace)
+                
                 // Process Killer Quick Access
                 ProcessKillerQuickAccess()
                     .environmentObject(workspace)
@@ -785,6 +788,66 @@ struct OmegaGuardianQuickAccess: View {
                 .padding(.horizontal, 12)
                 .background(Color.green.opacity(0.1))
                 .cornerRadius(8)
+            }
+        }
+        .padding()
+        .background(Color.themeDarkGray, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.themePurpleDark, lineWidth: 1)
+        )
+    }
+}
+
+struct SecurityDashboardsCard: View {
+    @EnvironmentObject var workspace: WorkspaceState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Security Dashboards")
+                .font(.headline)
+                .foregroundColor(.themeText)
+            
+            HStack(spacing: 12) {
+                QuickActionButton(
+                    title: "SSH Security",
+                    icon: "key.fill",
+                    color: .themePurple
+                ) {
+                    workspace.selectedView = .sshSecurity
+                }
+                
+                QuickActionButton(
+                    title: "User Accounts",
+                    icon: "person.2.fill",
+                    color: .themePurple
+                ) {
+                    workspace.selectedView = .userAccountSecurity
+                }
+                
+                QuickActionButton(
+                    title: "Privacy",
+                    icon: "hand.raised.fill",
+                    color: .themePurple
+                ) {
+                    workspace.selectedView = .privacyHeatmap
+                }
+                
+                QuickActionButton(
+                    title: "Network",
+                    icon: "network",
+                    color: .themePurple
+                ) {
+                    workspace.selectedView = .networkGraph
+                }
+                
+                QuickActionButton(
+                    title: "Timeline",
+                    icon: "clock.fill",
+                    color: .themePurple
+                ) {
+                    workspace.selectedView = .incidentTimeline
+                }
             }
         }
         .padding()

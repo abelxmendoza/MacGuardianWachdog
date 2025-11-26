@@ -3,6 +3,7 @@
 # ===============================
 # Cron Job Auditor
 # Monitors cron jobs for changes and suspicious patterns
+# Event Spec v1.0.0 compliant
 # ===============================
 
 set -euo pipefail
@@ -10,8 +11,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-source "$SUITE_DIR/core/utils.sh" 2>/dev/null || true
-source "$SUITE_DIR/core/config.sh" 2>/dev/null || true
+# Source core modules
+source "$SUITE_DIR/core/validators.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/logging.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/system_state.sh" 2>/dev/null || true
+source "$SUITE_DIR/core/privilege_check.sh" 2>/dev/null || true
+source "$SUITE_DIR/daemons/event_writer.sh" 2>/dev/null || true
 
 BASELINE_DIR="$HOME/.macguardian/baselines"
 CRON_BASELINE="$BASELINE_DIR/cron_baseline.json"
@@ -22,7 +27,7 @@ mkdir -p "$BASELINE_DIR" "$(dirname "$AUDIT_OUTPUT")"
 # Initialize baseline
 init_cron_baseline() {
     if [ ! -f "$CRON_BASELINE" ]; then
-        log_message "INFO" "Creating cron job baseline..."
+        log_auditor "cron_auditor" "INFO" "Creating cron job baseline..."
         
         local cron_jobs="[]"
         local cron_hash=""
@@ -78,7 +83,7 @@ init_cron_baseline() {
 }
 EOF
         
-        success "Cron baseline created"
+        log_auditor "cron_auditor" "INFO" "Cron baseline created"
     fi
 }
 
@@ -104,18 +109,31 @@ audit_cron_jobs() {
     # Check for changes
     if [ -n "$baseline_hash" ] && [ -n "$current_hash" ] && [ "$current_hash" != "$baseline_hash" ]; then
         issues=$((issues + 1))
-        warning "Crontab has been modified"
+        
+        # Emit Event Spec v1.0.0 event
+        local context_json="{\"change_type\": \"modified\", \"file\": \"crontab\", \"old_hash\": \"$baseline_hash\", \"new_hash\": \"$current_hash\"}"
+        write_event "cron_modification" "high" "cron_auditor" "$context_json"
+        log_auditor "cron_auditor" "WARNING" "Crontab has been modified"
     fi
     
     # Check for suspicious patterns
+    local suspicious_jobs=""
     if crontab -l 2>/dev/null | grep -qiE "(curl|wget|bash|sh|python|perl).*http"; then
         issues=$((issues + 1))
-        warning "Suspicious cron job detected: downloads from internet"
+        local job_line=$(crontab -l 2>/dev/null | grep -iE "(curl|wget|bash|sh|python|perl).*http" | head -1)
+        local escaped_job=$(echo "$job_line" | sed 's/"/\\"/g')
+        local context_json="{\"change_type\": \"suspicious_pattern\", \"pattern\": \"downloads_from_internet\", \"job\": \"$escaped_job\"}"
+        write_event "cron_modification" "high" "cron_auditor" "$context_json"
+        log_auditor "cron_auditor" "WARNING" "Suspicious cron job detected: downloads from internet"
     fi
     
     if crontab -l 2>/dev/null | grep -qiE "(base64|eval|exec|decode)"; then
         issues=$((issues + 1))
-        warning "Suspicious cron job detected: obfuscated commands"
+        local job_line=$(crontab -l 2>/dev/null | grep -iE "(base64|eval|exec|decode)" | head -1)
+        local escaped_job=$(echo "$job_line" | sed 's/"/\\"/g')
+        local context_json="{\"change_type\": \"suspicious_pattern\", \"pattern\": \"obfuscated_commands\", \"job\": \"$escaped_job\"}"
+        write_event "cron_modification" "high" "cron_auditor" "$context_json"
+        log_auditor "cron_auditor" "WARNING" "Suspicious cron job detected: obfuscated commands"
     fi
     
     # Check system crontabs
@@ -127,7 +145,10 @@ audit_cron_jobs() {
                 
                 if [ -n "$baseline_file_hash" ] && [ "$current_file_hash" != "$baseline_file_hash" ]; then
                     issues=$((issues + 1))
-                    warning "System crontab modified: $file"
+                    local escaped_file=$(echo "$file" | sed 's/"/\\"/g')
+                    local context_json="{\"change_type\": \"modified\", \"file\": \"$escaped_file\", \"old_hash\": \"$baseline_file_hash\", \"new_hash\": \"$current_file_hash\"}"
+                    write_event "cron_modification" "high" "cron_auditor" "$context_json"
+                    log_auditor "cron_auditor" "WARNING" "System crontab modified: $file"
                 fi
             fi
         done
@@ -145,13 +166,18 @@ audit_cron_jobs() {
 EOF
     
     if [ $issues -eq 0 ]; then
-        success "Cron audit completed - no issues found"
+        log_auditor "cron_auditor" "INFO" "Cron audit completed - no issues found"
     else
-        warning "Cron audit completed - $issues issue(s) found"
+        log_auditor "cron_auditor" "WARNING" "Cron audit completed - $issues issue(s) found"
     fi
     
     return $issues
 }
+
+# Check privileges on load
+if ! check_privileges "audit"; then
+    log_auditor "cron_auditor" "WARNING" "Some cron audit checks may require sudo privileges"
+fi
 
 # Main execution
 if [ "${1:-audit}" = "baseline" ]; then
