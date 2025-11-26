@@ -9,9 +9,19 @@ struct ProcessKillerView: View {
     @State private var searchText: String = ""
     @State private var isLoading = false
     @State private var showForceQuitConfirmation = false
+    @State private var showKillAllConfirmation = false
     @State private var appsToKill: [RunningApp] = []
     @State private var killResult: KillResult?
     @State private var refreshTimer: Timer?
+    
+    // MacGuardian app bundle identifier - must not be killed
+    private var macGuardianBundleID: String {
+        #if os(macOS)
+        return Bundle.main.bundleIdentifier ?? "com.macguardian.suite.ui"
+        #else
+        return "com.macguardian.suite.ui"
+        #endif
+    }
     
     // Common problematic apps that users want to kill
     private let commonApps = ["Cursor", "Firefox", "Slack", "Discord", "Chrome", "Safari", "Code", "Xcode"]
@@ -185,6 +195,16 @@ struct ProcessKillerView: View {
                 
                 Spacer()
                 
+                // Kill All button (excludes MacGuardian app)
+                Button {
+                    showKillAllConfirmation = true
+                } label: {
+                    Label("Kill All Processes", systemImage: "exclamationmark.octagon.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .disabled(runningApps.isEmpty)
+                
                 Button("Select All") {
                     selectedApps = Set(filteredApps.map { $0.id })
                 }
@@ -218,6 +238,15 @@ struct ProcessKillerView: View {
             }
         } message: {
             Text("Are you sure you want to force quit \(appsToKill.count) application(s)? This will immediately terminate them without saving:\n\n\(appsToKill.map { $0.name }.joined(separator: ", "))")
+        }
+        .alert("Kill All Processes", isPresented: $showKillAllConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Kill All", role: .destructive) {
+                killAllProcesses()
+            }
+        } message: {
+            let killableApps = runningApps.filter { $0.bundleIdentifier != macGuardianBundleID }
+            Text("⚠️ WARNING: This will kill ALL running applications (\(killableApps.count) apps) except MacGuardian Suite.\n\nThis action cannot be undone. Make sure you have saved your work in all other applications.\n\nMacGuardian Suite will be protected and will not be terminated.")
         }
         .alert("Kill Result", isPresented: .constant(killResult != nil), presenting: killResult) { result in
             Button("OK") {
@@ -307,6 +336,60 @@ struct ProcessKillerView: View {
                 for app in apps {
                     selectedApps.remove(app.id)
                 }
+            }
+        }
+    }
+    
+    private func killAllProcesses() {
+        // Filter out MacGuardian app - it must survive!
+        let appsToKill = runningApps.filter { app in
+            app.bundleIdentifier != macGuardianBundleID
+        }
+        
+        guard !appsToKill.isEmpty else {
+            killResult = KillResult(
+                success: true,
+                message: "No applications to kill (MacGuardian Suite is protected)."
+            )
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            var successCount = 0
+            var failedApps: [String] = []
+            
+            for app in appsToKill {
+                // Double-check: never kill MacGuardian
+                if app.bundleIdentifier == macGuardianBundleID {
+                    continue
+                }
+                
+                // Force kill all processes
+                if killProcess(app: app, force: true) {
+                    successCount += 1
+                } else {
+                    failedApps.append(app.name)
+                }
+            }
+            
+            DispatchQueue.main.async {
+                let message: String
+                if failedApps.isEmpty {
+                    message = "Successfully killed \(successCount) application(s). MacGuardian Suite is still running."
+                } else {
+                    message = "Killed \(successCount) application(s). Failed: \(failedApps.joined(separator: ", ")). MacGuardian Suite is still running."
+                }
+                
+                killResult = KillResult(
+                    success: failedApps.isEmpty,
+                    message: message
+                )
+                
+                // Clear selection
+                selectedApps.removeAll()
+                
+                // Refresh app list
+                refreshApps(showLoading: false)
             }
         }
     }
@@ -449,6 +532,15 @@ func getRunningApplications() -> [RunningApp] {
     }
     
     return runningApps.map { RunningApp(from: $0) }
+}
+
+// Get current app's bundle identifier for protection
+func getCurrentAppBundleID() -> String? {
+    #if os(macOS)
+    return Bundle.main.bundleIdentifier
+    #else
+    return nil
+    #endif
 }
 
 func killProcess(app: RunningApp, force: Bool) -> Bool {

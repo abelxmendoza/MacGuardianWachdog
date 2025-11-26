@@ -113,6 +113,8 @@ struct ContentView: View {
                     RemediationCenterView()
                 case .omegaGuardian:
                     OmegaGuardianView()
+                case .realTimeMonitor:
+                    RealTimeDashboardView()
                 case .security:
                     SecurityDashboardView()
                         .environmentObject(workspace)
