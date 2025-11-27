@@ -77,19 +77,19 @@ struct UserAccountSecurityView: View {
                         if let audit = auditResult {
                             // Statistics
                             HStack(spacing: 16) {
-                                StatCard(
+                                UserAccountStatCard(
                                     title: "Total Users",
                                     value: "\(audit.currentUserCount)",
                                     icon: "person.3.fill",
                                     color: .themePurple
                                 )
-                                StatCard(
+                                UserAccountStatCard(
                                     title: "Admin Accounts",
                                     value: "\(audit.adminAccounts)",
                                     icon: "key.fill",
                                     color: audit.adminAccounts > 1 ? .orange : .themePurple
                                 )
-                                StatCard(
+                                UserAccountStatCard(
                                     title: "Root Accounts",
                                     value: "\(audit.rootAccounts)",
                                     icon: "exclamationmark.shield.fill",
@@ -234,7 +234,7 @@ struct UserAccountAuditResult: Codable {
     }
 }
 
-struct StatCard: View {
+struct UserAccountStatCard: View {
     let title: String
     let value: String
     let icon: String

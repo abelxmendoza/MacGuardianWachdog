@@ -2,18 +2,27 @@ import SwiftUI
 
 struct RiskBadge: View {
     let level: SecurityCard.RiskLevel
-    let text: String?
+    let text: String
     
     init(level: SecurityCard.RiskLevel, text: String? = nil) {
         self.level = level
-        self.text = text ?? levelText
+        if let text = text {
+            self.text = text
+        } else {
+            switch level {
+            case .good: self.text = "SAFE"
+            case .warning: self.text = "WARN"
+            case .danger: self.text = "RISK"
+            case .info: self.text = "INFO"
+            }
+        }
     }
     
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: iconName)
                 .font(.caption2)
-            Text(text ?? "")
+            Text(text)
                 .font(.macGuardianCaptionBold)
         }
         .foregroundColor(badgeColor)
@@ -21,15 +30,6 @@ struct RiskBadge: View {
         .padding(.vertical, 4)
         .background(badgeColor.opacity(0.2))
         .cornerRadius(6)
-    }
-    
-    private var levelText: String {
-        switch level {
-        case .good: return "SAFE"
-        case .warning: return "WARN"
-        case .danger: return "RISK"
-        case .info: return "INFO"
-        }
     }
     
     private var iconName: String {

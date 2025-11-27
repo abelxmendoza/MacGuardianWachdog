@@ -195,9 +195,8 @@ struct SecurityScoreExplanationView: View {
             }
             .background(Color.themeBlack)
             .navigationTitle("Security Score")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .automatic) {
                     Button("Done") {
                         dismiss()
                     }

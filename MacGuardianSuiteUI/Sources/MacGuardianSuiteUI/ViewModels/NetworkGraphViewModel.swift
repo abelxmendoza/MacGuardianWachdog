@@ -9,6 +9,7 @@ class NetworkGraphViewModel: ObservableObject {
     @Published var nodes: [GraphNode] = []
     @Published var edges: [GraphEdge] = []
     @Published var statistics: GraphStatistics?
+    @Published var networkEvents: [MacGuardianEvent] = []
     
     private let liveService = LiveUpdateService.shared
     private let graphBuilder = NetworkGraphBuilder()
@@ -50,6 +51,7 @@ class NetworkGraphViewModel: ObservableObject {
     private func processNetworkEvents() {
         // Use synchronous @Published property
         let networkEvents = liveService.networkEvents
+        self.networkEvents = networkEvents
         
         for event in networkEvents {
             if let process = event.context["process"]?.value as? String ??

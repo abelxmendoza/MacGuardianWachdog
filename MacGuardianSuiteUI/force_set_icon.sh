@@ -21,15 +21,16 @@ fi
 echo "🎨 Force-setting app icon using all methods..."
 echo ""
 
-# Ensure icon is in bundle Resources
+# Ensure icon is in bundle Resources as AppIcon.icns (standard macOS convention)
 echo "1️⃣  Copying icon to bundle..."
-cp "$ICON_ICNS" "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns"
-chmod 644 "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns"
+cp "$ICON_ICNS" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+chmod 644 "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 # Update Info.plist to ensure icon is referenced
 echo "2️⃣  Updating Info.plist..."
-plutil -replace CFBundleIconFile -string "MacGuardianLogo" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
-plutil -replace CFBundleIconFiles -array "MacGuardianLogo" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
+plutil -replace CFBundleIconFile -string "AppIcon" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
+plutil -replace CFBundleIconFiles -array "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
+plutil -insert CFBundleIconFiles.0 -string "AppIcon" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
 
 # Method 1: Use AppleScript (most reliable for Dock)
 echo "3️⃣  Setting icon via AppleScript..."
@@ -69,7 +70,7 @@ fi
 echo "7️⃣  Updating timestamps..."
 touch "$APP_BUNDLE"
 touch "$APP_BUNDLE/Contents/Info.plist"
-touch "$APP_BUNDLE/Contents/Resources/MacGuardianLogo.icns"
+touch "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 # Set bundle attributes
 if command -v SetFile &> /dev/null; then

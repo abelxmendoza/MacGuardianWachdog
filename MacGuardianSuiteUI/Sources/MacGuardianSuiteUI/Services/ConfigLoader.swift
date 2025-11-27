@@ -96,13 +96,13 @@ final class ConfigLoader: ObservableObject {
         }
         
         let dict = config.toDict()
-        let yaml = try Yams.dump(object: dict, defaultFlowStyle: .block, sortKeys: true)
+        let yaml = try Yams.dump(object: dict, sortKeys: true)
         
         // Ensure directory exists
         let configDir = (configPath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: configDir, withIntermediateDirectories: true)
         
-        try yaml.write(toFile: configPath, atomically: true, encoding: .utf8)
+        try yaml.write(toFile: configPath, atomically: true, encoding: String.Encoding.utf8)
         
         // Update cache state
         lastModified = try? FileManager.default.attributesOfItem(atPath: configPath)[.modificationDate] as? Date

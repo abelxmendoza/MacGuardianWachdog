@@ -136,6 +136,11 @@ final class WorkspaceState: ObservableObject {
     @Published var showCacheCleaner: Bool = false
     @Published var showCursorCacheCleaner: Bool = false
     @Published var showThreatIntelligence: Bool = false
+    @Published var showSidebar: Bool = true {
+        didSet {
+            UserDefaults.standard.set(showSidebar, forKey: "showSidebar")
+        }
+    }
     @Published var reportEmail: String = ""
     @Published var smtpUsername: String = ""
     @Published var smtpPassword: String = "" {
@@ -151,6 +156,7 @@ final class WorkspaceState: ObservableObject {
         self.repositoryPath = defaultPath
         self.hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
         self.safeMode = UserDefaults.standard.object(forKey: "safeMode") as? Bool ?? true
+        self.showSidebar = UserDefaults.standard.object(forKey: "showSidebar") as? Bool ?? true
         self.reportEmail = UserDefaults.standard.string(forKey: "reportEmail") ?? ""
         self.smtpUsername = UserDefaults.standard.string(forKey: "smtpUsername") ?? ""
         

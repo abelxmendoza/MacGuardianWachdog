@@ -146,12 +146,12 @@ struct NetworkGraphView: View {
                             .cornerRadius(12)
                             
                             // Recent Network Events
-                            if !networkEvents.isEmpty {
+                            if !viewModel.networkEvents.isEmpty {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Recent Network Events")
                                         .font(.headline.bold())
                                     
-                                    ForEach(networkEvents.prefix(10)) { event in
+                                    ForEach(viewModel.networkEvents.prefix(10)) { event in
                                         NetworkEventRow(event: event)
                                     }
                                 }
@@ -175,7 +175,7 @@ struct NetworkGraphView: View {
                             .padding()
                             .background(Color.themeBlack.opacity(0.5))
                             .cornerRadius(8)
-                        } else if networkEvents.isEmpty {
+                        } else if viewModel.networkEvents.isEmpty {
                             EmptyStateView(
                                 icon: "network",
                                 title: "No network events",
@@ -263,7 +263,7 @@ struct GraphNode: Codable, Identifiable {
 }
 
 struct GraphEdge: Codable, Identifiable {
-    let id: UUID
+    let id: String
     let from: Int
     let to: Int
     let label: String?
@@ -271,20 +271,20 @@ struct GraphEdge: Codable, Identifiable {
     let localPort: Int?
     let remotePort: Int?
     
-    init(from: Int, to: Int, label: String?, port: Int?, localPort: Int?, remotePort: Int?) {
-        self.id = UUID()
+    enum CodingKeys: String, CodingKey {
+        case id, from, to, label, port
+        case localPort = "local_port"
+        case remotePort = "remote_port"
+    }
+    
+    init(id: String = UUID().uuidString, from: Int, to: Int, label: String?, port: Int?, localPort: Int?, remotePort: Int?) {
+        self.id = id
         self.from = from
         self.to = to
         self.label = label
         self.port = port
         self.localPort = localPort
         self.remotePort = remotePort
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case from, to, label, port
-        case localPort = "local_port"
-        case remotePort = "remote_port"
     }
 }
 
@@ -471,9 +471,8 @@ struct NodeDetailView: View {
             }
             .background(Color.themeBlack)
             .navigationTitle("Node Details")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .automatic) {
                     Button("Done") {
                         dismiss()
                     }

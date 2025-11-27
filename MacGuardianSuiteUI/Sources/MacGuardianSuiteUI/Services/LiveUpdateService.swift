@@ -75,6 +75,12 @@ struct MacGuardianEvent: Codable, Identifiable {
     }
 }
 
+extension MacGuardianEvent: Equatable {
+    static func == (lhs: MacGuardianEvent, rhs: MacGuardianEvent) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+
 /// Helper for decoding Any JSON values
 struct AnyCodable: Codable {
     let value: Any
@@ -185,7 +191,9 @@ class WebSocketClient: ObservableObject {
     }
     
     private func handleMessage(_ text: String) {
-        LiveUpdateService.shared.handleWebSocketMessage(text)
+        Task { @MainActor in
+            await LiveUpdateService.shared.handleWebSocketMessage(text)
+        }
     }
     
     private func handleError(_ error: Error) {

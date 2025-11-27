@@ -17,17 +17,17 @@ struct ContentView: View {
                 WelcomeView()
                     .environmentObject(workspace)
             } else {
-                if workspace.selectedView == .tools {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-                        mainContentView
+                NavigationSplitView(columnVisibility: Binding(
+                    get: { workspace.showSidebar ? .automatic : .detailOnly },
+                    set: { newValue in
+                        workspace.showSidebar = (newValue != .detailOnly)
                     }
-                    .frame(minWidth: 1100, minHeight: 720)
-                } else {
+                )) {
+                    sidebar
+                } detail: {
                     mainContentView
-                        .frame(minWidth: 1100, minHeight: 720)
                 }
+                .frame(minWidth: 1100, minHeight: 720)
             }
         }
         .onChange(of: workspace.repositoryPath) { _, _ in
@@ -56,6 +56,25 @@ struct ContentView: View {
                 }
                 
                 Spacer()
+                
+                // Sidebar Toggle Button
+                Button {
+                    workspace.showSidebar.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: workspace.showSidebar ? "sidebar.left" : "sidebar.squares.left")
+                            .font(.system(size: 14))
+                        Text(workspace.showSidebar ? "Hide Scripts" : "Show Scripts")
+                            .font(.subheadline)
+                    }
+                    .foregroundColor(.themePurple)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.themePurple.opacity(0.1))
+                    .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .help(workspace.showSidebar ? "Hide script sidebar" : "Show script sidebar")
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -73,17 +92,33 @@ struct ContentView: View {
                 alignment: .bottom
             )
             
-            // Tab Navigation
-            HStack(spacing: 0) {
-                ForEach(AppView.allCases, id: \.self) { view in
-                    TabButton(
-                        view: view,
-                        isSelected: workspace.selectedView == view
-                    ) {
-                        workspace.selectedView = view
+            // Tab Navigation - Two Rows for Better Readability
+            VStack(spacing: 0) {
+                // First Row - Core Modules
+                HStack(spacing: 0) {
+                    ForEach(AppView.allCases.prefix(8), id: \.self) { view in
+                        TabButton(
+                            view: view,
+                            isSelected: workspace.selectedView == view
+                        ) {
+                            workspace.selectedView = view
+                        }
                     }
+                    Spacer()
                 }
-                Spacer()
+                
+                // Second Row - Security & Monitoring Modules
+                HStack(spacing: 0) {
+                    ForEach(AppView.allCases.dropFirst(8), id: \.self) { view in
+                        TabButton(
+                            view: view,
+                            isSelected: workspace.selectedView == view
+                        ) {
+                            workspace.selectedView = view
+                        }
+                    }
+                    Spacer()
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -166,29 +201,33 @@ struct ContentView: View {
         
         var body: some View {
             Button(action: action) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: view.icon)
-                        .font(.subheadline)
+                        .font(.system(size: 13))
+                        .frame(width: 16)
                     Text(view.rawValue)
-                        .font(.subheadline)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                     
                     // Show badge for Omega Guardian if there are unacknowledged incidents
                     if view == .omegaGuardian && incidentStore.unacknowledgedCount > 0 {
                         Text("\(incidentStore.unacknowledgedCount)")
                             .font(.caption2.bold())
                             .foregroundColor(.white)
-                            .padding(.horizontal, 6)
+                            .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(Color.red)
                             .clipShape(Capsule())
                     }
                 }
                 .foregroundColor(isSelected ? .themePurple : .themeTextSecondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(minWidth: 100)
                 .background(
                     isSelected ? Color.themePurple.opacity(0.2) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 8)
+                    in: RoundedRectangle(cornerRadius: 6)
                 )
             }
             .buttonStyle(.plain)

@@ -224,7 +224,7 @@ struct TerminalCommandView: View {
     }
 }
 
-struct InstructionStep: View {
+struct TerminalInstructionStep: View {
     let number: Int
     let text: String
     

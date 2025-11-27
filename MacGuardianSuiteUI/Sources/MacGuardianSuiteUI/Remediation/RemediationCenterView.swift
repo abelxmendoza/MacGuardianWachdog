@@ -253,7 +253,7 @@ struct RemediationActionCard: View {
                 HStack(spacing: 8) {
                     ImpactBadge(impact: action.impact)
                     if let risk = action.riskLevel {
-                        RiskBadge(risk: risk)
+                        RemediationRiskBadge(risk: risk)
                     }
                 }
             }
@@ -339,7 +339,7 @@ struct ImpactBadge: View {
     }
 }
 
-struct RiskBadge: View {
+struct RemediationRiskBadge: View {
     let risk: String
     
     var body: some View {

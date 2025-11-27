@@ -29,10 +29,10 @@
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>CFBundleIconFile</key>
-    <string>MacGuardianLogo</string>
+    <string>AppIcon</string>
     <key>CFBundleIconFiles</key>
     <array>
-        <string>MacGuardianLogo</string>
+        <string>AppIcon</string>
     </array>
 </dict>
 </plist>

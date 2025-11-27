@@ -62,7 +62,7 @@ struct NetworkConnection: Identifiable, Codable {
     }
 }
 
-struct ProcessInfo: Identifiable, Codable {
+struct BlueTeamProcessInfo: Identifiable, Codable {
     let id: UUID
     let pid: Int
     let name: String

@@ -271,12 +271,12 @@ struct IOCResultCard: View {
             }
             
             VStack(alignment: .leading, spacing: 8) {
-                DetailRow(label: "Type", value: ioc.type.displayName)
-                DetailRow(label: "Value", value: ioc.value)
-                DetailRow(label: "Source", value: ioc.source)
-                DetailRow(label: "Severity", value: ioc.severity.displayName)
+                ThreatDetailRow(label: "Type", value: ioc.type.displayName)
+                ThreatDetailRow(label: "Value", value: ioc.value)
+                ThreatDetailRow(label: "Source", value: ioc.source)
+                ThreatDetailRow(label: "Severity", value: ioc.severity.displayName)
                 if let description = ioc.description {
-                    DetailRow(label: "Description", value: description)
+                    ThreatDetailRow(label: "Description", value: description)
                 }
             }
             
@@ -325,7 +325,7 @@ struct CleanResultCard: View {
     }
 }
 
-struct DetailRow: View {
+struct ThreatDetailRow: View {
     let label: String
     let value: String
     

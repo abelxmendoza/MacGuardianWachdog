@@ -39,9 +39,8 @@ struct ExplanationView: View {
             }
             .background(Color.themeBlack)
             .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .automatic) {
                     Button("Done") {
                         dismiss()
                     }

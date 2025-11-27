@@ -99,42 +99,42 @@ struct PrivacyHeatmapView: View {
                             Text("Permission Overview (Real-Time)")
                                 .font(.headline.bold())
                             
-                            PermissionCard(
+                            PrivacyPermissionCard(
                                 title: "Full Disk Access",
                                 count: fullDiskAccessCount,
                                 icon: "externaldrive.fill",
                                 color: heatmapColor(count: fullDiskAccessCount, isHighRisk: true)
                             )
                             
-                            PermissionCard(
+                            PrivacyPermissionCard(
                                 title: "Screen Recording",
                                 count: screenRecordingCount,
                                 icon: "rectangle.on.rectangle",
                                 color: heatmapColor(count: screenRecordingCount, isHighRisk: true)
                             )
                             
-                            PermissionCard(
+                            PrivacyPermissionCard(
                                 title: "Microphone",
                                 count: microphoneCount,
                                 icon: "mic.fill",
                                 color: heatmapColor(count: microphoneCount, isHighRisk: true)
                             )
                             
-                            PermissionCard(
+                            PrivacyPermissionCard(
                                 title: "Camera",
                                 count: cameraCount,
                                 icon: "camera.fill",
                                 color: heatmapColor(count: cameraCount, isHighRisk: true)
                             )
                             
-                            PermissionCard(
+                            PrivacyPermissionCard(
                                 title: "Input Monitoring",
                                 count: inputMonitoringCount,
                                 icon: "keyboard",
                                 color: heatmapColor(count: inputMonitoringCount, isHighRisk: true)
                             )
                             
-                            PermissionCard(
+                            PrivacyPermissionCard(
                                 title: "Accessibility",
                                 count: accessibilityCount,
                                 icon: "figure.walk",
@@ -209,6 +209,7 @@ struct PrivacyHeatmapView: View {
         .onChange(of: privacyEvents.count) { _, _ in
             updateHeatmapFromEvents()
         }
+    }
     
     private func updateHeatmapFromEvents() {
         // Update sparse heatmap from real-time events (O(n) where n = events)
@@ -239,7 +240,6 @@ struct PrivacyHeatmapView: View {
                 }
             }
         }
-    }
     }
     
     private func runAudit() {
@@ -339,7 +339,7 @@ struct TCCPrivacyData: Codable {
     }
 }
 
-struct PermissionCard: View {
+struct PrivacyPermissionCard: View {
     let title: String
     let count: Int
     let icon: String

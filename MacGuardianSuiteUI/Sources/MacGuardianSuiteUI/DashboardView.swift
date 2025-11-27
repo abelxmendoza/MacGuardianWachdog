@@ -57,7 +57,8 @@ struct DashboardView: View {
                 QuickActionsCard(workspace: workspace)
                 
                 // Security Dashboards Quick Access
-                SecurityDashboardsCard(workspace: workspace)
+                SecurityDashboardsCard()
+                    .environmentObject(workspace)
                 
                 // Process Killer Quick Access
                 ProcessKillerQuickAccess()
@@ -801,6 +802,8 @@ struct OmegaGuardianQuickAccess: View {
 
 struct SecurityDashboardsCard: View {
     @EnvironmentObject var workspace: WorkspaceState
+    
+    init() {}
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -11,8 +11,8 @@ final class NetworkGraphBuilder: ObservableObject {
     // Reverse index: IPAddress -> Set of ProcessIDs
     private var ipToProcesses: [String: Set<Int>] = [:]
     
-    // Process metadata: ProcessID -> ProcessInfo
-    private var processInfo: [Int: ProcessInfo] = [:]
+    // Process metadata: ProcessID -> NetworkProcessInfo
+    private var processInfo: [Int: NetworkProcessInfo] = [:]
     
     private let queue = DispatchQueue(label: "com.macguardian.networkgraph", attributes: .concurrent)
     
@@ -25,7 +25,7 @@ final class NetworkGraphBuilder: ObservableObject {
             
             // Store process info
             if self.processInfo[processID] == nil {
-                self.processInfo[processID] = ProcessInfo(id: processID, name: processName)
+                self.processInfo[processID] = NetworkProcessInfo(id: processID, name: processName)
             }
             
             // Add connection node
@@ -84,7 +84,7 @@ final class NetworkGraphBuilder: ObservableObject {
     }
     
     /// Get process info (O(1))
-    func processInfo(for processID: Int) -> ProcessInfo? {
+    func processInfo(for processID: Int) -> NetworkProcessInfo? {
         return queue.sync {
             return processInfo[processID]
         }
@@ -92,7 +92,7 @@ final class NetworkGraphBuilder: ObservableObject {
     
     /// Build graph nodes for visualization (O(V + E))
     func buildGraphNodes() -> [GraphNode] {
-        return queue.sync {
+        return queue.sync(execute: {
             var nodes: [GraphNode] = []
             var nodeId = 0
             
@@ -124,12 +124,12 @@ final class NetworkGraphBuilder: ObservableObject {
             }
             
             return nodes
-        }
+        })
     }
     
     /// Build graph edges for visualization (O(E))
     func buildGraphEdges() -> [GraphEdge] {
-        return queue.sync {
+        return queue.sync(execute: {
             var edges: [GraphEdge] = []
             var edgeId = 0
             
@@ -168,7 +168,7 @@ final class NetworkGraphBuilder: ObservableObject {
             }
             
             return edges
-        }
+        })
     }
     
     /// Get statistics
@@ -218,7 +218,7 @@ struct ConnectionNode: Hashable {
     }
 }
 
-struct ProcessInfo {
+struct NetworkProcessInfo {
     let id: Int
     let name: String
 }
