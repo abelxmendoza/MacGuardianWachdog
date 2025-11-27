@@ -1,20 +1,18 @@
 #!/bin/bash
-APP_DIR=".build/release/MacGuardian Suite.app"
-ICON="Resources/AppIcon.icns"
+APP_PATH="MacGuardianSuiteUI/.build/arm64-apple-macosx/release/MacGuardian Suite.app"
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+FULL_APP_PATH="$PROJECT_ROOT/$APP_PATH"
 
-if [ ! -d "$ROOT_DIR/$APP_DIR" ]; then
-    echo "❌ App bundle not found: $ROOT_DIR/$APP_DIR"
+if [ ! -d "$FULL_APP_PATH" ]; then
+    echo "❌ App bundle not found: $FULL_APP_PATH"
     echo "   Run ./build_app.sh first"
     exit 1
 fi
 
-if [ ! -f "$ROOT_DIR/$ICON" ]; then
-    echo "❌ Icon file not found: $ROOT_DIR/$ICON"
-    exit 1
-fi
+touch "$FULL_APP_PATH"
+touch "$FULL_APP_PATH/Contents/Info.plist"
+touch "$FULL_APP_PATH/Contents/Resources/AppIcon.icns"
 
-cp "$ROOT_DIR/$ICON" "$ROOT_DIR/$APP_DIR/Contents/Resources/AppIcon.icns"
-touch "$ROOT_DIR/$APP_DIR"
-echo "✅ Icon set!"
+echo "✔ Touched bundle to force macOS refresh"
