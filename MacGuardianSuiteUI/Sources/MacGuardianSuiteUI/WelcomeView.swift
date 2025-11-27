@@ -196,25 +196,40 @@ struct WelcomeView: View {
                     )
                     .frame(maxWidth: 700)
                     
-                    Button {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                            workspace.hasSeenWelcome = true
+                    HStack(spacing: 16) {
+                        Button {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                workspace.hasSeenWelcome = true
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Text("Get Started")
+                                    .font(.headline)
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.title3)
+                            }
+                            .frame(maxWidth: 300)
+                            .padding(.vertical, 12)
                         }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Text("Get Started")
-                                .font(.headline)
-                            Image(systemName: "arrow.right.circle.fill")
-                                .font(.title3)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.themePurple)
+                        .controlSize(.large)
+                        .disabled(!workspace.validateRepositoryPath().isValid)
+                        .shadow(color: .themePurple.opacity(0.4), radius: 10, x: 0, y: 5)
+                        
+                        // Skip button - always enabled
+                        Button {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                workspace.hasSeenWelcome = true
+                            }
+                        } label: {
+                            Text("Skip Setup")
+                                .font(.subheadline)
+                                .foregroundColor(.themeTextSecondary)
                         }
-                        .frame(maxWidth: 300)
-                        .padding(.vertical, 12)
+                        .buttonStyle(.plain)
+                        .help("Skip welcome screen and proceed to main app")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.themePurple)
-                    .controlSize(.large)
-                    .disabled(!workspace.validateRepositoryPath().isValid)
-                    .shadow(color: .themePurple.opacity(0.4), radius: 10, x: 0, y: 5)
                 }
                 .offset(y: contentOffset)
                 .opacity(contentOpacity)
