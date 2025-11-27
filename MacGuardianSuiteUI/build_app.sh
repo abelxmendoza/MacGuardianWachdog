@@ -16,6 +16,7 @@ echo "▸ Creating app bundle..."
 rm -rf "$APP_PATH"
 mkdir -p "$APP_PATH/Contents/MacOS"
 mkdir -p "$APP_PATH/Contents/Resources"
+mkdir -p "$APP_PATH/Contents/Resources/images"
 
 echo "▸ Copying executable..."
 cp "$BUILD_DIR/MacGuardianSuiteUI" "$APP_PATH/Contents/MacOS/"
@@ -26,6 +27,18 @@ if [ -f "$PROJECT_ROOT/Resources/AppIcon.icns" ]; then
     echo "   ✔ Icon copied"
 else
     echo "   ⚠️  Warning: Icon not found at $PROJECT_ROOT/Resources/AppIcon.icns"
+fi
+
+echo "▸ Copying logo images..."
+if [ -f "$ROOT_DIR/Resources/images/MacGlogo.png" ]; then
+    cp "$ROOT_DIR/Resources/images/MacGlogo.png" "$APP_PATH/Contents/Resources/MacGlogo.png"
+    cp "$ROOT_DIR/Resources/images/MacGlogo.png" "$APP_PATH/Contents/Resources/images/MacGlogo.png"
+    echo "   ✔ MacGlogo.png copied"
+fi
+if [ -f "$ROOT_DIR/Resources/images/MacGuardianLogo.png" ]; then
+    cp "$ROOT_DIR/Resources/images/MacGuardianLogo.png" "$APP_PATH/Contents/Resources/MacGuardianLogo.png"
+    cp "$ROOT_DIR/Resources/images/MacGuardianLogo.png" "$APP_PATH/Contents/Resources/images/MacGuardianLogo.png"
+    echo "   ✔ MacGuardianLogo.png copied"
 fi
 
 echo "▸ Writing Info.plist..."

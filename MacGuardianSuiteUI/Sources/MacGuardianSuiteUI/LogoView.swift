@@ -15,61 +15,54 @@ struct LogoView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: size, height: size)
             } else {
-                // Fallback to system icon if logo not found
-                VStack(spacing: 8) {
-                    Image(systemName: "shield.checkered")
-                        .font(.system(size: size * 0.6))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.themePurple, .themePurpleLight],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Text("MACGUARDIAN")
-                        .font(.system(size: size * 0.15, weight: .bold))
-                        .foregroundColor(.themePurple)
-                    Text("WATCHDOG")
-                        .font(.system(size: size * 0.12, weight: .medium))
-                        .foregroundColor(.themePurpleDark)
-                }
+                // Minimal fallback - just show text if image not found
+                Text("MacGuardian")
+                    .font(.system(size: size * 0.2, weight: .bold))
+                    .foregroundColor(.themeText)
             }
         }
     }
     
     #if os(macOS)
     private func loadLogoImage() -> NSImage? {
-        // List of possible logo filenames (in order of preference)
+        // Prioritize MacGlogo.png
         let logoNames = ["MacGlogo", "MacGuardianLogo"]
         let extensions = ["png", "jpg", "jpeg"]
         
-        // Try to load from main bundle (for app bundle)
+        // Try to load from main bundle Resources (for app bundle)
         for logoName in logoNames {
             for ext in extensions {
+                // Try bundle resource first
                 if let imagePath = Bundle.main.path(forResource: logoName, ofType: ext) {
-                    return NSImage(contentsOfFile: imagePath)
+                    if let image = NSImage(contentsOfFile: imagePath) {
+                        return image
+                    }
+                }
+                
+                // Try Resources/images/ path in bundle
+                if let resourcePath = Bundle.main.resourcePath {
+                    let imagePath = "\(resourcePath)/images/\(logoName).\(ext)"
+                    if FileManager.default.fileExists(atPath: imagePath) {
+                        if let image = NSImage(contentsOfFile: imagePath) {
+                            return image
+                        }
+                    }
                 }
             }
         }
         
-        // Try to load from Resources directory relative to executable
-        var possiblePaths: [String] = []
+        // Try development paths (for SwiftUI previews and development)
+        let devPaths = [
+            "\(FileManager.default.currentDirectoryPath)/Resources/images/MacGlogo.png",
+            "\(FileManager.default.currentDirectoryPath)/MacGuardianSuiteUI/Resources/images/MacGlogo.png",
+            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Desktop/MacGuardianProject/MacGuardianSuiteUI/Resources/images/MacGlogo.png"
+        ]
         
-        for logoName in logoNames {
-            for ext in extensions {
-                // Bundle resource paths
-                possiblePaths.append("\(Bundle.main.resourcePath ?? "")/\(logoName).\(ext)")
-                possiblePaths.append("\(Bundle.main.resourcePath ?? "")/images/\(logoName).\(ext)")
-                
-                // Development paths
-                possiblePaths.append("\(FileManager.default.currentDirectoryPath)/Resources/\(logoName).\(ext)")
-                possiblePaths.append("\(FileManager.default.currentDirectoryPath)/Resources/images/\(logoName).\(ext)")
-            }
-        }
-        
-        for path in possiblePaths {
+        for path in devPaths {
             if FileManager.default.fileExists(atPath: path) {
-                return NSImage(contentsOfFile: path)
+                if let image = NSImage(contentsOfFile: path) {
+                    return image
+                }
             }
         }
         
@@ -77,4 +70,3 @@ struct LogoView: View {
     }
     #endif
 }
-
