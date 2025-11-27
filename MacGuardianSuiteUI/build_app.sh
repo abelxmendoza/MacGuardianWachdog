@@ -30,6 +30,12 @@ else
 fi
 
 echo "▸ Copying logo images..."
+# Copy brighter logo (priority for dock/app display)
+if [ -f "$ROOT_DIR/Resources/images/MacGuardianlogo-brighter.jpg" ]; then
+    cp "$ROOT_DIR/Resources/images/MacGuardianlogo-brighter.jpg" "$APP_PATH/Contents/Resources/MacGuardianlogo-brighter.jpg"
+    cp "$ROOT_DIR/Resources/images/MacGuardianlogo-brighter.jpg" "$APP_PATH/Contents/Resources/images/MacGuardianlogo-brighter.jpg"
+    echo "   ✔ MacGuardianlogo-brighter.jpg copied"
+fi
 if [ -f "$ROOT_DIR/Resources/images/MacGlogo.png" ]; then
     cp "$ROOT_DIR/Resources/images/MacGlogo.png" "$APP_PATH/Contents/Resources/MacGlogo.png"
     cp "$ROOT_DIR/Resources/images/MacGlogo.png" "$APP_PATH/Contents/Resources/images/MacGlogo.png"

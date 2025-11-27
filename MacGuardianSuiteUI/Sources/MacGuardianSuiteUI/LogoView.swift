@@ -25,9 +25,9 @@ struct LogoView: View {
     
     #if os(macOS)
     private func loadLogoImage() -> NSImage? {
-        // Prioritize MacGlogo.png
-        let logoNames = ["MacGlogo", "MacGuardianLogo"]
-        let extensions = ["png", "jpg", "jpeg"]
+        // Prioritize MacGuardianlogo-brighter.jpg (brighter version for better visibility)
+        let logoNames = ["MacGuardianlogo-brighter", "MacGlogo", "MacGuardianLogo"]
+        let extensions = ["jpg", "jpeg", "png"]
         
         // Try to load from main bundle Resources (for app bundle)
         for logoName in logoNames {
