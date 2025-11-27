@@ -526,11 +526,17 @@ struct WebView: NSViewRepresentable {
     
     func makeNSView(context: Context) -> WKWebView {
         let webView = WKWebView()
+        // Enable Web Inspector for debugging (always enabled for developer access)
+        webView.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        // Allow right-click context menu for "Inspect Element"
+        webView.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         webView.loadHTMLString(htmlContent, baseURL: nil)
         return webView
     }
     
     func updateNSView(_ nsView: WKWebView, context: Context) {
+        // Ensure developer extras stay enabled
+        nsView.configuration.preferences.setValue(true, forKey: "developerExtrasEnabled")
         if htmlContent != "" {
             nsView.loadHTMLString(htmlContent, baseURL: nil)
         }
