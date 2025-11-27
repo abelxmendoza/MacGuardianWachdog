@@ -58,6 +58,21 @@ cat > "$APP_PATH/Contents/Info.plist" << 'EOF'
 
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <key>LSUIElement</key>
+    <false/>
+
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2024 MacGuardian Suite</string>
+
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
 </dict>
 </plist>
 EOF
